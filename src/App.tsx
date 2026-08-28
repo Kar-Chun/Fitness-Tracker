@@ -4,23 +4,30 @@ import { AppShell, type AppTab } from "./components/layout/AppShell.tsx"
 import { ErrorState, PageLoader } from "./components/shared/Feedback.tsx"
 import { Modal } from "./components/shared/Modal.tsx"
 import { FoodEntryForm } from "./components/food/FoodEntryForm.tsx"
+import { FastFoodDialog } from "./components/food/FastFoodDialog.tsx"
 import { WeightForm } from "./components/weight/WeightForm.tsx"
 import { useAuth } from "./hooks/use-auth.ts"
 import { useFitnessData } from "./hooks/use-fitness-data.ts"
 import { getWeightTrend } from "./lib/calculations.ts"
-import { completeWorkoutSession, deleteFoodEntry, getProfile, saveFoodEntry, startWorkout, upsertWeight } from "./services/fitness.ts"
+import { analyzeFoodText, completeWorkoutSession, copyMealFromDate, deleteFavouriteFood, deleteFoodEntry, deleteSavedMeal, getProfile, logSavedMeal, saveFavouriteFood, saveFoodEntry, saveFoodEstimate, saveSavedMeal, startWorkout, upsertWeight } from "./services/fitness.ts"
 import { AuthPage } from "./pages/AuthPage.tsx"
 import { FoodPage } from "./pages/FoodPage.tsx"
 import { HomePage } from "./pages/HomePage.tsx"
 import { OnboardingPage } from "./pages/OnboardingPage.tsx"
 import { ProgressPage } from "./pages/ProgressPage.tsx"
 import { WorkoutPage } from "./pages/WorkoutPage.tsx"
-import type { FoodEntry, Profile, WorkoutMode, WorkoutTemplate } from "./types/fitness.ts"
+import type { FavouriteFood, FoodEntry, FoodEntryInput, FoodEstimateLogInput, MealType, Profile, SavedMeal, SavedMealInput, WorkoutMode, WorkoutTemplate } from "./types/fitness.ts"
 import { supabase } from "./lib/supabase.ts"
 import { LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-type ModalState = { type: "food"; entry?: FoodEntry } | { type: "weight" } | { type: "account" } | null
+type FastFoodTab = "recent" | "frequent" | "favourites" | "meals" | "search" | "manual"
+type ModalState =
+  | { type: "food"; entry: FoodEntry }
+  | { type: "fast-food"; seed?: FoodEntryInput; initialTab?: FastFoodTab; initialMeal?: SavedMealInput }
+  | { type: "weight" }
+  | { type: "account" }
+  | null
 
 function getInitialTab(): AppTab {
   const hash = window.location.hash.replace("#", "")
@@ -32,6 +39,7 @@ function MainApp({ user, profile }: { user: User; profile: Profile }) {
   const [tab, setTab] = useState<AppTab>(getInitialTab)
   const [modal, setModal] = useState<ModalState>(null)
   const [actionError, setActionError] = useState("")
+  const [lastMealType, setLastMealType] = useState<MealType>("breakfast")
 
   function changeTab(nextTab: AppTab) {
     setTab(nextTab)
@@ -39,9 +47,55 @@ function MainApp({ user, profile }: { user: User; profile: Profile }) {
   }
 
   async function handleFoodSave(input: Parameters<typeof saveFoodEntry>[1]) {
-    await saveFoodEntry(user.id, input, modal?.type === "food" ? modal.entry?.id : undefined)
+    await saveFoodEntry(user.id, input, modal?.type === "food" ? modal.entry.id : undefined)
+    setLastMealType(input.mealType)
     await refresh()
     setModal(null)
+  }
+
+  async function handleFoodEstimateSave(input: FoodEstimateLogInput) {
+    await saveFoodEstimate(user.id, input)
+    setLastMealType(input.mealType)
+    await refresh()
+    setModal(null)
+  }
+
+  async function handleSaveFavourite(input: Parameters<typeof saveFavouriteFood>[1], id?: string) {
+    await saveFavouriteFood(user.id, input, id)
+    await refresh()
+  }
+
+  async function handleDeleteFavourite(id: string) {
+    await deleteFavouriteFood(user.id, id)
+    await refresh()
+  }
+
+  async function handleToggleFavourite(entry: FoodEntry, favourite?: FavouriteFood) {
+    if (favourite) await deleteFavouriteFood(user.id, favourite.id)
+    else await saveFavouriteFood(user.id, { name: entry.name, calories: entry.calories, proteinG: entry.protein_g, defaultMealType: entry.meal_type })
+    await refresh()
+  }
+
+  async function handleSaveMeal(input: SavedMealInput, id?: string) {
+    await saveSavedMeal(user.id, input, id)
+    await refresh()
+  }
+
+  async function handleDeleteSavedMeal(id: string) {
+    await deleteSavedMeal(user.id, id)
+    await refresh()
+  }
+
+  async function handleLogSavedMeal(meal: SavedMeal, mealType?: MealType) {
+    await logSavedMeal(user.id, meal, mealType)
+    setLastMealType(mealType ?? meal.default_meal_type ?? "snack")
+    await refresh()
+    setModal(null)
+  }
+
+  async function handleCopyMeal(entries: FoodEntry[]) {
+    await copyMealFromDate(user.id, entries)
+    await refresh()
   }
 
   async function handleDeleteFood(entry: FoodEntry) {
@@ -84,14 +138,19 @@ function MainApp({ user, profile }: { user: User; profile: Profile }) {
   return (
     <AppShell activeTab={tab} onTabChange={changeTab} onOpenAccount={() => setModal({ type: "account" })} email={user.email}>
       {actionError && <div className="mb-5"><ErrorState message={actionError} /></div>}
-      {tab === "home" && <HomePage data={data} onAddFood={() => setModal({ type: "food" })} onLogWeight={() => setModal({ type: "weight" })} onStartWorkout={handleStartWorkout} />}
-      {tab === "food" && <FoodPage data={data} onAdd={() => setModal({ type: "food" })} onEdit={(entry) => setModal({ type: "food", entry })} onDelete={handleDeleteFood} />}
+      {tab === "home" && <HomePage data={data} onAddFood={() => setModal({ type: "fast-food" })} onLogWeight={() => setModal({ type: "weight" })} onStartWorkout={handleStartWorkout} />}
+      {tab === "food" && <FoodPage data={data} onAdd={() => setModal({ type: "fast-food" })} onQuickAdd={(seed) => setModal({ type: "fast-food", seed })} onEdit={(entry) => setModal({ type: "food", entry })} onDelete={handleDeleteFood} onToggleFavourite={handleToggleFavourite} onSaveAsMeal={(entries, mealType) => setModal({ type: "fast-food", initialTab: "meals", initialMeal: { name: "", defaultMealType: mealType, items: entries.map((entry) => ({ name: entry.name, calories: entry.calories, proteinG: entry.protein_g })) } })} onCopyMeal={handleCopyMeal} onLogSavedMeal={handleLogSavedMeal} />}
       {tab === "workout" && <WorkoutPage userId={user.id} data={data} onStart={handleStartWorkout} onComplete={handleCompleteWorkout} onRefresh={refresh} />}
       {tab === "progress" && <ProgressPage data={data} />}
 
       {modal?.type === "food" && (
-        <Modal title={modal.entry ? "Edit food" : "Add food"} description="Use your own best estimate for calories and protein." onClose={() => setModal(null)}>
+        <Modal title="Edit food" description="Historical entries keep the values saved on that day." onClose={() => setModal(null)}>
           <FoodEntryForm entry={modal.entry} onSubmit={handleFoodSave} onCancel={() => setModal(null)} />
+        </Modal>
+      )}
+      {modal?.type === "fast-food" && (
+        <Modal title="Add food" description="Reuse something familiar or enter it manually." onClose={() => setModal(null)}>
+          <FastFoodDialog foodEntries={data.foodEntries} favourites={data.favouriteFoods} savedMeals={data.savedMeals} defaultMealType={lastMealType} initialSeed={modal.seed} initialTab={modal.initialTab} initialMealInput={modal.initialMeal} onAdd={handleFoodSave} onSaveFavourite={handleSaveFavourite} onDeleteFavourite={handleDeleteFavourite} onSaveMeal={handleSaveMeal} onDeleteMeal={handleDeleteSavedMeal} onLogMeal={handleLogSavedMeal} onAnalyzeFood={analyzeFoodText} onLogEstimate={handleFoodEstimateSave} onClose={() => setModal(null)} />
         </Modal>
       )}
       {modal?.type === "weight" && (

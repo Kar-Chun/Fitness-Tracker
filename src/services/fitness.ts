@@ -2,14 +2,27 @@ import { supabase } from "../lib/supabase.ts"
 import { calculateCalorieTarget } from "../lib/calculations.ts"
 import { daysAgo, toLocalDateKey } from "../lib/date.ts"
 import { DEFAULT_WORKOUT_TEMPLATES } from "../lib/workout-templates.ts"
+import {
+  copyMealToNow,
+  normalizeFoodName,
+  repeatFoodInput,
+  savedMealToFoodInputs,
+} from "../lib/food-history.ts"
 import type {
   CalorieTarget,
   ExerciseSet,
+  FavouriteFood,
+  FavouriteFoodInput,
   FitnessData,
   FoodEntry,
   FoodEntryInput,
+  FoodEstimate,
+  FoodEstimateLogInput,
   OnboardingInput,
   Profile,
+  SavedMeal,
+  SavedMealInput,
+  SavedMealItem,
   WeightEntry,
   WorkoutMode,
   WorkoutSession,
@@ -109,7 +122,7 @@ export async function completeOnboarding(userId: string, input: OnboardingInput)
 }
 
 export async function loadFitnessData(userId: string): Promise<FitnessData> {
-  const [targetResult, foodResult, weightResult, templateResult, sessionResult] = await Promise.all([
+  const [targetResult, foodResult, favouriteResult, savedMealResult, weightResult, templateResult, sessionResult] = await Promise.all([
     supabase
       .from("calorie_targets")
       .select("*")
@@ -123,8 +136,18 @@ export async function loadFitnessData(userId: string): Promise<FitnessData> {
       .from("food_entries")
       .select("*")
       .eq("user_id", userId)
-      .gte("eaten_at", daysAgo(30).toISOString())
-      .order("eaten_at", { ascending: false }),
+      .order("eaten_at", { ascending: false })
+      .limit(1000),
+    supabase
+      .from("favourite_foods")
+      .select("*")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("saved_meals")
+      .select("*, saved_meal_items(*)")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false }),
     supabase
       .from("weight_entries")
       .select("*")
@@ -144,7 +167,7 @@ export async function loadFitnessData(userId: string): Promise<FitnessData> {
       .limit(30),
   ])
 
-  const firstError = [targetResult, foodResult, weightResult, templateResult, sessionResult].find(
+  const firstError = [targetResult, foodResult, favouriteResult, savedMealResult, weightResult, templateResult, sessionResult].find(
     (result) => result.error,
   )?.error
   if (firstError) throw new Error(firstError.message)
@@ -155,6 +178,9 @@ export async function loadFitnessData(userId: string): Promise<FitnessData> {
   type SessionRow = WorkoutSession & {
     workout_templates: { name: string } | null
     exercise_sets: ExerciseSet[]
+  }
+  type SavedMealRow = Omit<SavedMeal, "items"> & {
+    saved_meal_items: SavedMealItem[]
   }
 
   const templates = (templateResult.data as TemplateRow[]).map((template) => ({
@@ -174,10 +200,21 @@ export async function loadFitnessData(userId: string): Promise<FitnessData> {
     template_name: session.workout_templates?.name ?? "Workout",
     sets: [...session.exercise_sets].sort((a, b) => a.set_number - b.set_number),
   }))
+  const savedMeals = (savedMealResult.data as SavedMealRow[]).map((meal) => ({
+    id: meal.id,
+    user_id: meal.user_id,
+    name: meal.name,
+    default_meal_type: meal.default_meal_type,
+    created_at: meal.created_at,
+    updated_at: meal.updated_at,
+    items: [...meal.saved_meal_items].sort((a, b) => a.position - b.position),
+  }))
 
   return {
     calorieTarget: targetResult.data as CalorieTarget | null,
     foodEntries: foodResult.data as FoodEntry[],
+    favouriteFoods: favouriteResult.data as FavouriteFood[],
+    savedMeals,
     weightEntries: weightResult.data as WeightEntry[],
     templates,
     sessions,
@@ -192,11 +229,169 @@ export async function saveFoodEntry(userId: string, input: FoodEntryInput, id?: 
     protein_g: input.proteinG,
     meal_type: input.mealType,
     eaten_at: new Date(input.eatenAt).toISOString(),
+    source: input.source ?? "manual",
+    confidence: input.confidence ?? null,
+    estimate_low_calories: input.estimateLowCalories ?? null,
+    estimate_high_calories: input.estimateHighCalories ?? null,
   }
   const result = id
     ? await supabase.from("food_entries").update(payload).eq("id", id).eq("user_id", userId)
     : await supabase.from("food_entries").insert(payload)
   if (result.error) throw new Error(result.error.message)
+}
+
+export async function analyzeFoodText(description: string) {
+  const { data, error } = await supabase.functions.invoke("analyze-food-text", {
+    body: { description },
+  })
+  if (error) {
+    let message = error.message || "Could not analyze this meal."
+    const context = "context" in error ? error.context : null
+    if (context instanceof Response) {
+      try {
+        const body = await context.clone().json() as { error?: { message?: string } }
+        message = body.error?.message ?? message
+      } catch {
+        // The standard function error message is still useful when the response is not JSON.
+      }
+    }
+    throw new Error(message)
+  }
+  if (!isFoodEstimate(data)) throw new Error("The meal estimate response was incomplete. Please try again.")
+  return data
+}
+
+export async function saveFoodEstimate(userId: string, input: FoodEstimateLogInput) {
+  await saveFoodEntry(userId, {
+    name: input.name,
+    calories: input.calories,
+    proteinG: input.proteinG,
+    mealType: input.mealType,
+    eatenAt: input.eatenAt,
+    source: input.source,
+    confidence: input.confidence,
+    estimateLowCalories: input.estimateLowCalories,
+    estimateHighCalories: input.estimateHighCalories,
+  })
+}
+
+function isFoodEstimate(value: unknown): value is FoodEstimate {
+  if (!value || typeof value !== "object") return false
+  const estimate = value as Partial<FoodEstimate>
+  const range = estimate.calorieRange
+  const sources = new Set(["history", "favourite", "saved_meal", "usda", "ai_estimate", "mixed"])
+  const itemSources = new Set(["history", "favourite", "saved_meal", "usda", "ai_estimate"])
+  const confidences = new Set(["high", "medium", "low"])
+  return typeof estimate.mealName === "string" && Boolean(estimate.mealName.trim())
+    && typeof estimate.totalCalories === "number" && Number.isFinite(estimate.totalCalories) && estimate.totalCalories > 0
+    && typeof estimate.totalProteinG === "number" && Number.isFinite(estimate.totalProteinG) && estimate.totalProteinG >= 0
+    && Boolean(range) && typeof range?.low === "number" && typeof range.high === "number"
+    && range.low <= estimate.totalCalories && estimate.totalCalories <= range.high
+    && typeof estimate.source === "string" && sources.has(estimate.source)
+    && typeof estimate.confidence === "string" && confidences.has(estimate.confidence)
+    && typeof estimate.sourceSummary === "string"
+    && Array.isArray(estimate.items)
+    && estimate.items.length > 0
+    && estimate.items.every((item) => Boolean(item)
+      && typeof item.name === "string" && Boolean(item.name.trim())
+      && typeof item.portionDescription === "string"
+      && typeof item.estimatedGrams === "number" && Number.isFinite(item.estimatedGrams) && item.estimatedGrams >= 0
+      && typeof item.calories === "number" && Number.isFinite(item.calories) && item.calories > 0
+      && typeof item.proteinG === "number" && Number.isFinite(item.proteinG) && item.proteinG >= 0
+      && typeof item.source === "string" && itemSources.has(item.source)
+      && typeof item.confidence === "string" && confidences.has(item.confidence)
+      && typeof item.calorieRange?.low === "number" && typeof item.calorieRange.high === "number"
+      && item.calorieRange.low <= item.calories && item.calories <= item.calorieRange.high
+      && (item.caloriesPer100g === null || typeof item.caloriesPer100g === "number")
+      && (item.proteinPer100g === null || typeof item.proteinPer100g === "number"))
+}
+
+async function insertFoodEntries(userId: string, inputs: FoodEntryInput[]) {
+  if (!inputs.length) throw new Error("There are no food items to log.")
+  const payload = inputs.map((input) => ({
+    user_id: userId,
+    name: input.name.trim(),
+    calories: input.calories,
+    protein_g: input.proteinG,
+    meal_type: input.mealType,
+    eaten_at: new Date(input.eatenAt).toISOString(),
+    source: input.source ?? "manual",
+    confidence: input.confidence ?? null,
+    estimate_low_calories: input.estimateLowCalories ?? null,
+    estimate_high_calories: input.estimateHighCalories ?? null,
+  }))
+  const { error } = await supabase.from("food_entries").insert(payload)
+  if (error) throw new Error(error.message)
+}
+
+export async function repeatFoodEntry(userId: string, entry: FoodEntry, now = new Date()) {
+  await insertFoodEntries(userId, [repeatFoodInput(entry, now)])
+}
+
+export async function copyMealFromDate(userId: string, entries: FoodEntry[], now = new Date()) {
+  await insertFoodEntries(userId, copyMealToNow(entries, now))
+}
+
+export async function saveFavouriteFood(userId: string, input: FavouriteFoodInput, id?: string) {
+  const payload = {
+    user_id: userId,
+    name: input.name.trim(),
+    normalized_name: normalizeFoodName(input.name),
+    calories: input.calories,
+    protein_g: input.proteinG,
+    default_meal_type: input.defaultMealType,
+  }
+  const result = id
+    ? await supabase.from("favourite_foods").update(payload).eq("id", id).eq("user_id", userId)
+    : await supabase.from("favourite_foods").upsert(payload, { onConflict: "user_id,normalized_name" })
+  if (result.error) throw new Error(result.error.message)
+}
+
+export async function deleteFavouriteFood(userId: string, id: string) {
+  const { error } = await supabase.from("favourite_foods").delete().eq("id", id).eq("user_id", userId)
+  if (error) throw new Error(error.message)
+}
+
+export async function saveSavedMeal(userId: string, input: SavedMealInput, id?: string) {
+  if (!input.items.length) throw new Error("Add at least one item to the saved meal.")
+  const mealPayload = {
+    user_id: userId,
+    name: input.name.trim(),
+    default_meal_type: input.defaultMealType,
+  }
+  let mealId = id
+  if (mealId) {
+    const { error } = await supabase.from("saved_meals").update(mealPayload).eq("id", mealId).eq("user_id", userId)
+    if (error) throw new Error(error.message)
+    const { error: deleteError } = await supabase.from("saved_meal_items").delete().eq("saved_meal_id", mealId).eq("user_id", userId)
+    if (deleteError) throw new Error(deleteError.message)
+  } else {
+    const { data, error } = await supabase.from("saved_meals").insert(mealPayload).select("id").single()
+    mealId = (requireData(data, error, "Could not create the saved meal.") as { id: string }).id
+  }
+
+  const items = input.items.map((item, position) => ({
+    user_id: userId,
+    saved_meal_id: mealId,
+    name: item.name.trim(),
+    calories: item.calories,
+    protein_g: item.proteinG,
+    position,
+  }))
+  const { error: itemError } = await supabase.from("saved_meal_items").insert(items)
+  if (itemError) {
+    if (!id) await supabase.from("saved_meals").delete().eq("id", mealId).eq("user_id", userId)
+    throw new Error(itemError.message)
+  }
+}
+
+export async function deleteSavedMeal(userId: string, id: string) {
+  const { error } = await supabase.from("saved_meals").delete().eq("id", id).eq("user_id", userId)
+  if (error) throw new Error(error.message)
+}
+
+export async function logSavedMeal(userId: string, meal: SavedMeal, mealType?: FoodEntryInput["mealType"]) {
+  await insertFoodEntries(userId, savedMealToFoodInputs(meal, mealType))
 }
 
 export async function deleteFoodEntry(userId: string, id: string) {

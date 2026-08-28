@@ -8,16 +8,19 @@ import type { FoodEntry, FoodEntryInput, MealType } from "../../types/fitness.ts
 
 interface FoodEntryFormProps {
   entry?: FoodEntry
+  initial?: FoodEntryInput
+  defaultMealType?: MealType
   onSubmit: (input: FoodEntryInput) => Promise<void>
   onCancel: () => void
 }
 
-export function FoodEntryForm({ entry, onSubmit, onCancel }: FoodEntryFormProps) {
-  const [name, setName] = useState(entry?.name ?? "")
-  const [calories, setCalories] = useState(entry ? String(entry.calories) : "")
-  const [protein, setProtein] = useState(entry?.protein_g === null || !entry ? "" : String(entry.protein_g))
-  const [mealType, setMealType] = useState<MealType>(entry?.meal_type ?? "breakfast")
-  const [eatenAt, setEatenAt] = useState(toLocalDateTimeInput(entry?.eaten_at))
+export function FoodEntryForm({ entry, initial, defaultMealType, onSubmit, onCancel }: FoodEntryFormProps) {
+  const [name, setName] = useState(entry?.name ?? initial?.name ?? "")
+  const [calories, setCalories] = useState(entry ? String(entry.calories) : initial ? String(initial.calories) : "")
+  const initialProtein = entry?.protein_g ?? initial?.proteinG ?? null
+  const [protein, setProtein] = useState(initialProtein === null ? "" : String(initialProtein))
+  const [mealType, setMealType] = useState<MealType>(entry?.meal_type ?? initial?.mealType ?? defaultMealType ?? "breakfast")
+  const [eatenAt, setEatenAt] = useState(entry ? toLocalDateTimeInput(entry.eaten_at) : initial?.eatenAt ?? toLocalDateTimeInput())
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
 
@@ -43,6 +46,10 @@ export function FoodEntryForm({ entry, onSubmit, onCancel }: FoodEntryFormProps)
         proteinG: proteinValue,
         mealType,
         eatenAt,
+        source: entry?.source ?? initial?.source,
+        confidence: entry?.confidence ?? initial?.confidence,
+        estimateLowCalories: entry?.estimate_low_calories ?? initial?.estimateLowCalories,
+        estimateHighCalories: entry?.estimate_high_calories ?? initial?.estimateHighCalories,
       })
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Could not save this food entry.")
