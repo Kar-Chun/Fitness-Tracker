@@ -1,24 +1,22 @@
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Dumbbell, Plus, Scale } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { caloriesConsumed, caloriesRemaining, entriesForToday, getWeightTrend, selectNextWorkoutName } from "../lib/calculations.ts"
-import type { FitnessData, WorkoutMode, WorkoutTemplate } from "../types/fitness.ts"
+import { caloriesConsumed, caloriesRemaining, entriesForToday, getWeightTrend } from "../lib/calculations.ts"
+import type { FitnessData } from "../types/fitness.ts"
 
 interface HomePageProps {
   data: FitnessData
   onAddFood: () => void
   onLogWeight: () => void
-  onStartWorkout: (template: WorkoutTemplate, mode: WorkoutMode) => void
+  onOpenWorkout: () => void
 }
 
-export function HomePage({ data, onAddFood, onLogWeight, onStartWorkout }: HomePageProps) {
+export function HomePage({ data, onAddFood, onLogWeight, onOpenWorkout }: HomePageProps) {
   const todayEntries = entriesForToday(data.foodEntries)
   const consumed = caloriesConsumed(todayEntries)
   const target = data.calorieTarget?.calories ?? 0
   const remaining = caloriesRemaining(target, consumed)
   const percentage = target > 0 ? Math.min(100, Math.max(0, (consumed / target) * 100)) : 0
-  const completedNames = data.sessions.filter((session) => session.completed_at).map((session) => session.template_name)
-  const nextName = selectNextWorkoutName(completedNames)
-  const nextTemplate = data.templates.find((template) => template.name === nextName) ?? data.templates[0]
+  const recentWorkout = data.sessions.find((session) => session.completed_at)
   const trend = getWeightTrend(data.weightEntries)
 
   return (
@@ -48,18 +46,13 @@ export function HomePage({ data, onAddFood, onLogWeight, onStartWorkout }: HomeP
         <section className="rounded-3xl border border-slate-800 bg-slate-900 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-blue-400">TODAY’S WORKOUT</p>
-              <h2 className="mt-2 text-2xl font-semibold">{nextTemplate?.name ?? "Workout A"}</h2>
-              <p className="mt-1 text-sm text-slate-500">Full body · about 35 minutes</p>
+              <p className="text-sm font-medium text-blue-400">WORKOUT</p>
+              <h2 className="mt-2 text-2xl font-semibold">{recentWorkout?.title ?? recentWorkout?.template_name ?? "Choose how you train"}</h2>
+              <p className="mt-1 text-sm text-slate-500">{recentWorkout ? "Start again, choose a routine, or log a finished workout." : `${data.templates.length} routines ready · Quick Workout available`}</p>
             </div>
             <span className="grid size-11 place-items-center rounded-2xl bg-blue-500/10 text-blue-400"><Dumbbell /></span>
           </div>
-          {nextTemplate ? (
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              <Button size="lg" className="h-11 bg-blue-500 hover:bg-blue-400" onClick={() => onStartWorkout(nextTemplate, "normal")}>Start workout <ArrowRight /></Button>
-              <Button size="lg" variant="outline" className="h-11" onClick={() => onStartWorkout(nextTemplate, "light")}>Start light version</Button>
-            </div>
-          ) : <p className="mt-6 text-sm text-slate-400">Workout templates will appear after setup is complete.</p>}
+          <Button size="lg" className="mt-6 h-11 w-full bg-blue-500 hover:bg-blue-400" onClick={onOpenWorkout}>Open workouts <ArrowRight /></Button>
         </section>
 
         <section className="rounded-3xl border border-slate-800 bg-slate-900 p-5 sm:p-6">

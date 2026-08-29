@@ -1,6 +1,6 @@
 # Steady Fitness Tracker
 
-A mobile-first personal tracker for calories, simple A/B workouts, and weight trends. V1.2A adds review-first text meal estimates backed by personal food history, USDA FoodData Central, Gemini, and an AI fallback. The app uses React, TypeScript, Vite, Tailwind, shadcn/ui, and Supabase.
+A mobile-first personal tracker for calories, flexible workout logging, and weight trends. V1.2 adds review-first text and photo meal estimates backed by personal food history, USDA FoodData Central, Gemini, and an AI fallback. V1.3 adds custom routines and low-friction workout logging. The app uses React, TypeScript, Vite, Tailwind, shadcn/ui, and Supabase.
 
 ## Local setup
 
@@ -72,12 +72,26 @@ For a manual integration check, try a banana, eggs with toast, chicken rice, cai
 - `npm run build`
 - `npm test`
 
+## V1.3 custom workouts
+
+The Workout tab is user-choice-first. Existing Workout A/B rows remain ordinary editable routines, while users can create any number of routines from the focused home-equipment exercise library or their own custom exercises.
+
+Starting a routine creates session-exercise snapshots, so the live workout may safely differ from the saved plan. Sets are prefilled from the latest relevant completed Normal session but remain drafts until their check button is tapped. Exercises may be skipped, replaced for the current session, or added, and partial workouts can be completed. Quick Workout starts without a routine. Log Finished Workout and Copy Last create new reviewed sessions without mutating history.
+
+Configure adjustable dumbbells, maximum weight per dumbbell, bench, and pull-up bar under Profile & Settings. Per-dumbbell and total loads are labelled explicitly. Progression remains deterministic and ignores Light, skipped, and incomplete work; a configured dumbbell ceiling prevents suggestions above available equipment.
+
+Apply the V1.3 follow-up migration before deploying the updated frontend:
+
+```sh
+npx supabase db push
+```
+
 ## Data behavior
 
-- Profiles, calorie targets, food, weight, templates, sessions, and sets are protected by row-level security.
+- Profiles, calorie targets, food, weight, exercises, routines, session exercises, sessions, and sets are protected by row-level security.
 - Logging weight again for the same date updates that date's entry.
 - Calorie targets are initial estimates and do not change automatically with weight logs.
-- Workout A/B selection alternates based on the most recently completed session. Light workouts count as completed workouts.
+- Existing Workout A/B data remains readable, but no sequence is imposed. Light workouts are configured per routine, count as completed workouts, and do not drive progression.
 - Recent, frequent, and search results are derived from the user's own food history using deterministic name normalisation.
 - Favourites and saved meals are reusable templates. Logging them always creates new diary entries, so later template edits never alter food history.
 - AI-created diary entries store only compact provenance, confidence, and calorie-range fields. Existing entries remain `manual` by default.

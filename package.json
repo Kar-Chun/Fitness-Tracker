@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test tests/calculations.test.ts tests/food-history.test.ts tests/food-analysis.test.ts tests/food-image.test.ts"
+    "test": "node --experimental-strip-types --test tests/calculations.test.ts tests/food-history.test.ts tests/food-analysis.test.ts tests/food-image.test.ts tests/workout-progression.test.ts tests/workout-drafts.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

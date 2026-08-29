@@ -6,17 +6,18 @@ import { Modal } from "./components/shared/Modal.tsx"
 import { FoodEntryForm } from "./components/food/FoodEntryForm.tsx"
 import { FastFoodDialog } from "./components/food/FastFoodDialog.tsx"
 import { WeightForm } from "./components/weight/WeightForm.tsx"
+import { EquipmentSettings } from "./components/workout/EquipmentSettings.tsx"
 import { useAuth } from "./hooks/use-auth.ts"
 import { useFitnessData } from "./hooks/use-fitness-data.ts"
 import { getWeightTrend } from "./lib/calculations.ts"
-import { analyzeFoodImage, analyzeFoodText, completeWorkoutSession, copyMealFromDate, deleteFavouriteFood, deleteFoodEntry, deleteSavedMeal, getProfile, logSavedMeal, saveFavouriteFood, saveFoodEntry, saveFoodEstimate, saveSavedMeal, startWorkout, upsertWeight } from "./services/fitness.ts"
+import { analyzeFoodImage, analyzeFoodText, copyMealFromDate, deleteFavouriteFood, deleteFoodEntry, deleteSavedMeal, getProfile, logSavedMeal, saveEquipmentSettings, saveFavouriteFood, saveFoodEntry, saveFoodEstimate, saveSavedMeal, upsertWeight } from "./services/fitness.ts"
 import { AuthPage } from "./pages/AuthPage.tsx"
 import { FoodPage } from "./pages/FoodPage.tsx"
 import { HomePage } from "./pages/HomePage.tsx"
 import { OnboardingPage } from "./pages/OnboardingPage.tsx"
 import { ProgressPage } from "./pages/ProgressPage.tsx"
 import { WorkoutPage } from "./pages/WorkoutPage.tsx"
-import type { FavouriteFood, FoodEntry, FoodEntryInput, FoodEstimateLogInput, MealType, Profile, SavedMeal, SavedMealInput, WorkoutMode, WorkoutTemplate } from "./types/fitness.ts"
+import type { FavouriteFood, FoodEntry, FoodEntryInput, FoodEstimateLogInput, MealType, Profile, SavedMeal, SavedMealInput } from "./types/fitness.ts"
 import { supabase } from "./lib/supabase.ts"
 import { LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -34,7 +35,7 @@ function getInitialTab(): AppTab {
   return ["home", "food", "workout", "progress"].includes(hash) ? hash as AppTab : "home"
 }
 
-function MainApp({ user, profile }: { user: User; profile: Profile }) {
+function MainApp({ user, profile, onProfileRefresh }: { user: User; profile: Profile; onProfileRefresh: () => Promise<void> }) {
   const { data, loading, error, refresh } = useFitnessData(user.id)
   const [tab, setTab] = useState<AppTab>(getInitialTab)
   const [modal, setModal] = useState<ModalState>(null)
@@ -115,22 +116,6 @@ function MainApp({ user, profile }: { user: User; profile: Profile }) {
     setModal(null)
   }
 
-  async function handleStartWorkout(template: WorkoutTemplate, mode: WorkoutMode) {
-    const existing = data?.sessions.find((session) => !session.completed_at)
-    if (existing) {
-      changeTab("workout")
-      return
-    }
-    await startWorkout(user.id, template.id, mode)
-    await refresh()
-    changeTab("workout")
-  }
-
-  async function handleCompleteWorkout(sessionId: string) {
-    await completeWorkoutSession(user.id, sessionId)
-    await refresh()
-  }
-
   if (loading) return <AppShell activeTab={tab} onTabChange={changeTab} onOpenAccount={() => setModal({ type: "account" })} email={user.email}><PageLoader /></AppShell>
   if (error || !data) return <AppShell activeTab={tab} onTabChange={changeTab} onOpenAccount={() => setModal({ type: "account" })} email={user.email}><ErrorState message={error || "No data was returned."} onRetry={refresh} /></AppShell>
 
@@ -138,9 +123,9 @@ function MainApp({ user, profile }: { user: User; profile: Profile }) {
   return (
     <AppShell activeTab={tab} onTabChange={changeTab} onOpenAccount={() => setModal({ type: "account" })} email={user.email}>
       {actionError && <div className="mb-5"><ErrorState message={actionError} /></div>}
-      {tab === "home" && <HomePage data={data} onAddFood={() => setModal({ type: "fast-food" })} onLogWeight={() => setModal({ type: "weight" })} onStartWorkout={handleStartWorkout} />}
+      {tab === "home" && <HomePage data={data} onAddFood={() => setModal({ type: "fast-food" })} onLogWeight={() => setModal({ type: "weight" })} onOpenWorkout={() => changeTab("workout")} />}
       {tab === "food" && <FoodPage data={data} onAdd={() => setModal({ type: "fast-food" })} onQuickAdd={(seed) => setModal({ type: "fast-food", seed })} onEdit={(entry) => setModal({ type: "food", entry })} onDelete={handleDeleteFood} onToggleFavourite={handleToggleFavourite} onSaveAsMeal={(entries, mealType) => setModal({ type: "fast-food", initialTab: "meals", initialMeal: { name: "", defaultMealType: mealType, items: entries.map((entry) => ({ name: entry.name, calories: entry.calories, proteinG: entry.protein_g })) } })} onCopyMeal={handleCopyMeal} onLogSavedMeal={handleLogSavedMeal} />}
-      {tab === "workout" && <WorkoutPage userId={user.id} data={data} onStart={handleStartWorkout} onComplete={handleCompleteWorkout} onRefresh={refresh} />}
+      {tab === "workout" && <WorkoutPage userId={user.id} data={data} dumbbellMaxKg={profile.has_adjustable_dumbbells ? profile.dumbbell_max_kg : null} onRefresh={refresh} />}
       {tab === "progress" && <ProgressPage data={data} />}
 
       {modal?.type === "food" && (
@@ -167,6 +152,7 @@ function MainApp({ user, profile }: { user: User; profile: Profile }) {
             <div><dt className="text-slate-500">Starting target</dt><dd className="mt-1 text-slate-200">{data.calorieTarget?.calories.toLocaleString() ?? "—"} kcal</dd></div>
           </dl>
           <p className="mt-4 text-xs leading-5 text-slate-500">Your calorie target is the starting estimate from onboarding. V1 does not adjust it automatically.</p>
+          <EquipmentSettings profile={profile} onSave={async (input) => { await saveEquipmentSettings(user.id, input); await onProfileRefresh() }} />
           <Button variant="outline" size="lg" className="mt-6 h-11 w-full text-red-200 hover:text-red-100" onClick={() => supabase.auth.signOut()}><LogOut /> Sign out</Button>
         </Modal>
       )}
@@ -195,7 +181,7 @@ function AuthenticatedApp({ user }: { user: User }) {
   if (error) return <main className="min-h-dvh bg-slate-950 p-5 text-white"><div className="mx-auto mt-24 max-w-lg"><ErrorState message={error} onRetry={loadProfile} /></div></main>
   if (profile === undefined) return <main className="min-h-dvh bg-slate-950 text-white"><PageLoader label="Preparing your account…" /></main>
   if (!profile?.onboarding_completed) return <OnboardingPage userId={user.id} onComplete={loadProfile} />
-  return <MainApp user={user} profile={profile} />
+  return <MainApp user={user} profile={profile} onProfileRefresh={loadProfile} />
 }
 
 function App() {

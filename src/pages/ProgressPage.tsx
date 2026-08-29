@@ -1,5 +1,6 @@
-import { CalendarCheck, ChartNoAxesCombined, Scale } from "lucide-react"
+import { CalendarCheck, ChartNoAxesCombined, Dumbbell, Scale, TrendingUp } from "lucide-react"
 import { getWeightTrend, weeklyCalorieAverage } from "../lib/calculations.ts"
+import { getStrengthProgress } from "../lib/workout-progression.ts"
 import { daysAgo, formatDateTime, formatShortDate, toLocalDateKey } from "../lib/date.ts"
 import type { FitnessData } from "../types/fitness.ts"
 
@@ -8,6 +9,13 @@ export function ProgressPage({ data }: { data: FitnessData }) {
   const calorieAverage = weeklyCalorieAverage(data.foodEntries)
   const weekStart = daysAgo(6)
   const completedThisWeek = data.sessions.filter((session) => session.completed_at && new Date(session.completed_at) >= weekStart)
+  const monthStart = new Date()
+  monthStart.setDate(1)
+  monthStart.setHours(0, 0, 0, 0)
+  const completedThisMonth = data.sessions.filter((session) => session.completed_at && new Date(session.completed_at) >= monthStart)
+  const normalThisMonth = completedThisMonth.filter((session) => session.mode === "normal").length
+  const lightThisMonth = completedThisMonth.filter((session) => session.mode === "light").length
+  const strengthProgress = getStrengthProgress(data.sessions, data.templates, monthStart)
   const recentWeights = data.weightEntries.slice(0, 14).reverse()
   const values = recentWeights.map((entry) => entry.weight_kg)
   const min = values.length ? Math.min(...values) : 0
@@ -46,6 +54,21 @@ export function ProgressPage({ data }: { data: FitnessData }) {
           <p className="mt-2 text-sm text-slate-500">Light sessions count equally. Showing up is the point.</p>
         </section>
       </div>
+
+      <section className="rounded-3xl border border-slate-800 bg-slate-900 p-5 sm:p-6">
+        <div className="flex items-center gap-3"><Dumbbell className="text-blue-400" /><div><h2 className="font-semibold">Recent strength progress</h2><p className="mt-0.5 text-xs text-slate-500">Completed Normal exercise history</p></div></div>
+        <div className="mt-5">
+          <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300"><TrendingUp className="size-4 text-blue-400" /> Working-load changes</p>
+          {strengthProgress.length ? (
+            <div className="overflow-hidden rounded-2xl border border-slate-800">
+              {strengthProgress.map((item, index) => (
+                <div key={item.exerciseName} className={`flex items-center justify-between gap-4 p-3 ${index ? "border-t border-slate-800" : ""}`}><span className="text-sm text-slate-300">{item.exerciseName}</span><span className="shrink-0 text-sm font-medium text-blue-300">{item.fromWeightKg}kg → {item.toWeightKg}kg</span></div>
+              ))}
+            </div>
+          ) : <p className="rounded-2xl border border-dashed border-slate-800 p-5 text-sm leading-6 text-slate-500">Keep logging workouts to build exercise history. Light and skipped exercises do not alter load progression.</p>}
+        </div>
+        <p className="mt-4 text-xs text-slate-500">This month: {completedThisMonth.length} workouts · {normalThisMonth} Normal · {lightThisMonth} Light. Every completed session counts.</p>
+      </section>
 
       <section>
         <h2 className="mb-3 text-sm font-medium text-slate-400">Recent sessions</h2>
