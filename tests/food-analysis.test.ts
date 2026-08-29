@@ -1,12 +1,13 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { nutrientsForEditedGrams, totalsFromEstimateItems } from "../src/lib/food-estimate.ts"
-import { extractGeminiStructuredOutput, parseMealDescription, validateParsedMeal } from "../supabase/functions/analyze-food-text/gemini-parser.ts"
-import { FOOD_PARSER_MODEL } from "../supabase/functions/analyze-food-text/config.ts"
-import { findPersonalMatch, rankUSDACandidates } from "../supabase/functions/analyze-food-text/matching.ts"
-import { buildEstimate, buildPersonalEstimate, nutrientsForGrams, resolveAIItem, resolveUSDAItem } from "../supabase/functions/analyze-food-text/nutrition.ts"
-import { resolveParsedMeal } from "../supabase/functions/analyze-food-text/resolver.ts"
-import type { ParsedFoodItem, ParsedMeal, ResolvedFoodItem, USDAFoodCandidate, USDAFoodMatch } from "../supabase/functions/analyze-food-text/types.ts"
+import { FOOD_PARSER_MODEL } from "../supabase/functions/_shared/food-analysis/config.ts"
+import { extractGeminiStructuredOutput } from "../supabase/functions/_shared/food-analysis/gemini-client.ts"
+import { findPersonalMatch, rankUSDACandidates } from "../supabase/functions/_shared/food-analysis/matching.ts"
+import { buildEstimate, buildPersonalEstimate, nutrientsForGrams, resolveAIItem, resolveUSDAItem } from "../supabase/functions/_shared/food-analysis/nutrition.ts"
+import { resolveParsedMeal } from "../supabase/functions/_shared/food-analysis/resolver.ts"
+import { parseMealDescription, validateParsedMeal } from "../supabase/functions/_shared/food-analysis/text-parser.ts"
+import type { ParsedFoodItem, ParsedMeal, ResolvedFoodItem, USDAFoodCandidate, USDAFoodMatch } from "../supabase/functions/_shared/food-analysis/types.ts"
 
 function parsedItem(overrides: Partial<ParsedFoodItem> = {}): ParsedFoodItem {
   return {

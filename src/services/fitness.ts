@@ -18,6 +18,8 @@ import type {
   FoodEntryInput,
   FoodEstimate,
   FoodEstimateLogInput,
+  FoodImageAnalysisInput,
+  FoodImageAnalysisResult,
   OnboardingInput,
   Profile,
   SavedMeal,
@@ -244,21 +246,29 @@ export async function analyzeFoodText(description: string) {
   const { data, error } = await supabase.functions.invoke("analyze-food-text", {
     body: { description },
   })
-  if (error) {
-    let message = error.message || "Could not analyze this meal."
-    const context = "context" in error ? error.context : null
-    if (context instanceof Response) {
-      try {
-        const body = await context.clone().json() as { error?: { message?: string } }
-        message = body.error?.message ?? message
-      } catch {
-        // The standard function error message is still useful when the response is not JSON.
-      }
-    }
-    throw new Error(message)
-  }
+  if (error) throw new Error(await functionErrorMessage(error, "Could not analyze this meal."))
   if (!isFoodEstimate(data)) throw new Error("The meal estimate response was incomplete. Please try again.")
   return data
+}
+
+export async function analyzeFoodImage(input: FoodImageAnalysisInput) {
+  const { data, error } = await supabase.functions.invoke("analyze-food-image", { body: input })
+  if (error) throw new Error(await functionErrorMessage(error, "Could not analyze this meal photo."))
+  if (!isFoodImageAnalysisResult(data)) throw new Error("The photo analysis response was incomplete. Please try again.")
+  return data
+}
+
+async function functionErrorMessage(error: { message?: string; context?: unknown }, fallback: string) {
+  let message = error.message || fallback
+  if (error.context instanceof Response) {
+    try {
+      const body = await error.context.clone().json() as { error?: { message?: string } }
+      message = body.error?.message ?? message
+    } catch {
+      // Keep the standard function error when the response is not JSON.
+    }
+  }
+  return message
 }
 
 export async function saveFoodEstimate(userId: string, input: FoodEstimateLogInput) {
@@ -304,6 +314,14 @@ function isFoodEstimate(value: unknown): value is FoodEstimate {
       && item.calorieRange.low <= item.calories && item.calories <= item.calorieRange.high
       && (item.caloriesPer100g === null || typeof item.caloriesPer100g === "number")
       && (item.proteinPer100g === null || typeof item.proteinPer100g === "number"))
+}
+
+function isFoodImageAnalysisResult(value: unknown): value is FoodImageAnalysisResult {
+  if (!value || typeof value !== "object") return false
+  const result = value as Partial<FoodImageAnalysisResult>
+  if (!Array.isArray(result.uncertainties) || !result.uncertainties.every((note) => typeof note === "string")) return false
+  if (result.status === "ok") return "estimate" in result && isFoodEstimate(result.estimate)
+  return (result.status === "no_food" || result.status === "too_uncertain") && "message" in result && typeof result.message === "string"
 }
 
 async function insertFoodEntries(userId: string, inputs: FoodEntryInput[]) {

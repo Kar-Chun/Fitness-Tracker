@@ -87,6 +87,16 @@ export interface FoodEstimateLogInput {
   estimateHighCalories: number
 }
 
+export interface FoodImageAnalysisInput {
+  imageBase64: string
+  mimeType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif"
+  note: string
+}
+
+export type FoodImageAnalysisResult =
+  | { status: "ok"; estimate: FoodEstimate; uncertainties: string[] }
+  | { status: "no_food" | "too_uncertain"; message: string; uncertainties: string[] }
+
 export interface FavouriteFood {
   id: string
   user_id: string

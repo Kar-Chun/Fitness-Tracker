@@ -1,13 +1,14 @@
 import { useMemo, useState, type FormEvent } from "react"
-import { Check, LoaderCircle, Pencil, Plus, Search, Sparkles, Star, Trash2, X } from "lucide-react"
+import { Camera, Check, LoaderCircle, Pencil, Plus, Search, Sparkles, Star, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getFrequentFoods, getRecentFoods, historyOptionToFoodInput, savedMealTotal, searchFoodHistory } from "../../lib/food-history.ts"
 import { toLocalDateTimeInput } from "../../lib/date.ts"
-import type { FavouriteFood, FavouriteFoodInput, FoodEntry, FoodEntryInput, FoodEstimate, FoodEstimateLogInput, FoodHistoryOption, MealType, SavedMeal, SavedMealInput, SavedMealItemInput } from "../../types/fitness.ts"
+import type { FavouriteFood, FavouriteFoodInput, FoodEntry, FoodEntryInput, FoodEstimate, FoodEstimateLogInput, FoodHistoryOption, FoodImageAnalysisInput, FoodImageAnalysisResult, MealType, SavedMeal, SavedMealInput, SavedMealItemInput } from "../../types/fitness.ts"
 import { FieldShell, Input, Select } from "../shared/FormField.tsx"
 import { InlineError } from "../shared/Feedback.tsx"
 import { FoodEntryForm } from "./FoodEntryForm.tsx"
 import { DescribeFoodFlow } from "./DescribeFoodFlow.tsx"
+import { ScanFoodFlow } from "./ScanFoodFlow.tsx"
 
 type FastFoodTab = "recent" | "frequent" | "favourites" | "meals" | "search" | "manual"
 
@@ -26,6 +27,7 @@ interface FastFoodDialogProps {
   onDeleteMeal: (id: string) => Promise<void>
   onLogMeal: (meal: SavedMeal, mealType: MealType) => Promise<void>
   onAnalyzeFood: (description: string) => Promise<FoodEstimate>
+  onAnalyzeImage: (input: FoodImageAnalysisInput) => Promise<FoodImageAnalysisResult>
   onLogEstimate: (input: FoodEstimateLogInput) => Promise<void>
   onClose: () => void
 }
@@ -47,6 +49,7 @@ export function FastFoodDialog(props: FastFoodDialogProps) {
   const [editingMeal, setEditingMeal] = useState<SavedMeal | "new" | "seed" | null>(props.initialMealInput ? "seed" : null)
   const [loggingMeal, setLoggingMeal] = useState<SavedMeal | null>(null)
   const [describing, setDescribing] = useState(false)
+  const [scanning, setScanning] = useState(false)
 
   function chooseOption(option: FoodHistoryOption | FavouriteFood) {
     const input = "lastUsedAt" in option
@@ -87,9 +90,17 @@ export function FastFoodDialog(props: FastFoodDialogProps) {
     return <DescribeFoodFlow defaultMealType={props.defaultMealType} onAnalyze={props.onAnalyzeFood} onLog={props.onLogEstimate} onBack={() => setDescribing(false)} />
   }
 
+  if (scanning) {
+    return <ScanFoodFlow defaultMealType={props.defaultMealType} onAnalyze={props.onAnalyzeImage} onLog={props.onLogEstimate} onDescribe={() => { setScanning(false); setDescribing(true) }} onBack={() => setScanning(false)} />
+  }
+
   return (
     <div>
-      <button type="button" className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-blue-400/25 bg-blue-500/10 p-4 text-left transition hover:border-blue-400/50 hover:bg-blue-500/15" onClick={() => setDescribing(true)}>
+      <button type="button" className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-blue-400/25 bg-blue-500/15 p-4 text-left transition hover:border-blue-400/50 hover:bg-blue-500/20" onClick={() => setScanning(true)}>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-500 text-white"><Camera className="size-5" /></span>
+        <span className="min-w-0"><span className="block font-semibold text-blue-100">Scan Meal</span><span className="mt-0.5 block text-sm text-slate-400">Take or choose a photo, then review the estimate.</span></span>
+      </button>
+      <button type="button" className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-blue-400/20 bg-blue-500/5 p-4 text-left transition hover:border-blue-400/40 hover:bg-blue-500/10" onClick={() => setDescribing(true)}>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-500 text-white"><Sparkles className="size-5" /></span>
         <span className="min-w-0"><span className="block font-semibold text-blue-100">Describe Meal</span><span className="mt-0.5 block text-sm text-slate-400">Get an estimate, then review before logging.</span></span>
       </button>

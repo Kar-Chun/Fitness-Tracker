@@ -11,7 +11,7 @@ A mobile-first personal tracker for calories, simple A/B workouts, and weight tr
 
 The frontend only uses the public/publishable Supabase key. Never add a service-role key to a Vite environment variable.
 
-## V1.2A AI text food setup
+## V1.2 AI food setup
 
 The `analyze-food-text` Edge Function requires these server-side Supabase secrets:
 
@@ -25,6 +25,7 @@ npx supabase db push
 npx supabase secrets set GEMINI_API_KEY=your_gemini_key
 npx supabase secrets set USDA_API_KEY=your_usda_key
 npx supabase functions deploy analyze-food-text
+npx supabase functions deploy analyze-food-image
 ```
 
 For local Edge Function development, create an ignored file such as `supabase/functions/.env.local` containing the two keys, then run:
@@ -32,6 +33,7 @@ For local Edge Function development, create an ignored file such as `supabase/fu
 ```sh
 npx supabase start
 npx supabase functions serve analyze-food-text --env-file supabase/functions/.env.local
+npx supabase functions serve analyze-food-image --env-file supabase/functions/.env.local
 ```
 
 Do not commit that local environment file. The existing `.gitignore` excludes `.env.*` files.
@@ -51,6 +53,18 @@ The original description, raw AI response, and full USDA responses are not persi
 After deploying the migration and function, sign in and try `2 eggs and 2 slices toast`, `chicken rice no skin`, `caifan half rice curry chicken egg cabbage`, `kopi c kosong`, and `protein shake and banana`. Confirm the result is labelled Estimated, sources and uncertainty are understandable, edits recalculate USDA-backed gram values, and nothing reaches the diary until **Log meal** is selected.
 
 Automated tests mock Gemini structured responses and external nutrition lookup behavior; they do not make live Gemini requests. A real end-to-end Gemini/USDA check requires valid project secrets and a deployed or locally served Edge Function.
+
+## V1.2B meal photo scanning
+
+From **Add Food**, choose **Scan Meal**, then either take a photo with the device camera or select one from the photo library. Selecting a photo only creates a local preview. Analysis starts only after **Analyze meal** is pressed, and the resulting estimate must still be reviewed and confirmed before it reaches the diary.
+
+Supported formats are JPEG, PNG, WebP, HEIC, and HEIF. The app and Edge Function both enforce a 6 MB maximum. The optional meal note is useful for context that may not be visible, such as `half rice, no skin` or `shared plate, I ate about half`.
+
+The image is sent inline to the authenticated `analyze-food-image` Edge Function, interpreted by Gemini, and passed through the same personal matching, USDA lookup, deterministic nutrition calculations, provenance, confidence, and calorie-range code used by text analysis. Image-derived portion ranges are intentionally wider.
+
+Meal photos are analyzed for the current estimate and are not intentionally stored by the Fitness App. No Storage bucket, image database column, photo gallery, public URL, or Gemini Files API is used. Only a confirmed nutrition entry is persisted. The image is still processed by Gemini for the request and may be subject to Google's applicable API data handling terms.
+
+For a manual integration check, try a banana, eggs with toast, chicken rice, cai fan, kopi or Milo, and a difficult curry or noodle dish. Add the note `half rice, no skin` to a chicken-rice photo and explicitly analyze again. Also confirm a keyboard returns no food, a dark or blurred meal can return too uncertain, and an image over 6 MB is rejected before analysis.
 
 ## Verification
 

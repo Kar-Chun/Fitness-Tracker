@@ -1,11 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
-import { parseMealDescription } from "./gemini-parser.ts"
-import { MAX_DESCRIPTION_LENGTH } from "./config.ts"
-import { FoodAnalysisError } from "./errors.ts"
-import { findPersonalMatch } from "./matching.ts"
-import { buildPersonalEstimate } from "./nutrition.ts"
-import { resolveParsedMeal } from "./resolver.ts"
-import type { FavouriteFood, HistoryFood, SavedMeal } from "./types.ts"
+import { MAX_DESCRIPTION_LENGTH } from "../_shared/food-analysis/config.ts"
+import { FoodAnalysisError } from "../_shared/food-analysis/errors.ts"
+import { findPersonalMatch } from "../_shared/food-analysis/matching.ts"
+import { buildPersonalEstimate } from "../_shared/food-analysis/nutrition.ts"
+import { resolveParsedMeal } from "../_shared/food-analysis/resolver.ts"
+import { parseMealDescription } from "../_shared/food-analysis/text-parser.ts"
+import type { FavouriteFood, HistoryFood, SavedMeal } from "../_shared/food-analysis/types.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

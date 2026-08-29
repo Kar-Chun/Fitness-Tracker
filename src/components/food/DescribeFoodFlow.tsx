@@ -78,7 +78,16 @@ export function DescribeFoodFlow({ defaultMealType, onAnalyze, onLog, onBack }: 
   )
 }
 
-function FoodEstimateReview({ estimate, defaultMealType, onLog, onTryAgain }: { estimate: FoodEstimate; defaultMealType: MealType; onLog: (input: FoodEstimateLogInput) => Promise<void>; onTryAgain: () => void }) {
+interface FoodEstimateReviewProps {
+  estimate: FoodEstimate
+  defaultMealType: MealType
+  onLog: (input: FoodEstimateLogInput) => Promise<void>
+  onTryAgain: () => void
+  previewUrl?: string
+  uncertainties?: string[]
+}
+
+export function FoodEstimateReview({ estimate, defaultMealType, onLog, onTryAgain, previewUrl, uncertainties = [] }: FoodEstimateReviewProps) {
   const [name, setName] = useState(estimate.mealName)
   const [items, setItems] = useState(estimate.items)
   const [totalCalories, setTotalCalories] = useState(estimate.totalCalories)
@@ -147,6 +156,7 @@ function FoodEstimateReview({ estimate, defaultMealType, onLog, onTryAgain }: { 
 
   return (
     <div className="grid gap-4">
+      {previewUrl && <img src={previewUrl} alt="Selected meal" className="max-h-64 w-full rounded-2xl border border-slate-800 bg-slate-950 object-contain" />}
       <div className="flex items-start justify-between gap-3">
         <div><p className="text-xs font-semibold uppercase tracking-wider text-blue-300">Estimated</p><h3 className="mt-1 text-xl font-semibold">{name}</h3></div>
         <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs capitalize text-slate-300">{estimate.confidence} confidence</span>
@@ -188,12 +198,18 @@ function FoodEstimateReview({ estimate, defaultMealType, onLog, onTryAgain }: { 
         )}
       </div>
       <p className="text-sm leading-6 text-slate-400">{estimate.sourceSummary}</p>
+      {uncertainties.length > 0 && (
+        <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
+          <p className="text-sm font-medium text-amber-100">Photo uncertainty</p>
+          <ul className="mt-2 grid gap-1 text-sm leading-5 text-slate-400">{uncertainties.map((note) => <li key={note}>• {note}</li>)}</ul>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Button variant="outline" className="h-11" onClick={() => setEditingItems((current) => !current)}><Pencil /> {editingItems ? "Done" : "Edit items"}</Button>
         <Button variant="outline" className="h-11" onClick={() => setEditingTotal((current) => !current)}><Pencil /> {editingTotal ? "Done" : "Edit total"}</Button>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <FieldShell label="Meal" htmlFor="estimate-meal"><Select id="estimate-meal" value={mealType} onChange={(event) => setMealType(event.target.value as MealType)}><MealOptions /></Select></FieldShell>
         <FieldShell label="Date and time" htmlFor="estimate-time"><Input id="estimate-time" type="datetime-local" value={eatenAt} onChange={(event) => setEatenAt(event.target.value)} /></FieldShell>
       </div>

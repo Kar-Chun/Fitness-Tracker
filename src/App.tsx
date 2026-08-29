@@ -9,7 +9,7 @@ import { WeightForm } from "./components/weight/WeightForm.tsx"
 import { useAuth } from "./hooks/use-auth.ts"
 import { useFitnessData } from "./hooks/use-fitness-data.ts"
 import { getWeightTrend } from "./lib/calculations.ts"
-import { analyzeFoodText, completeWorkoutSession, copyMealFromDate, deleteFavouriteFood, deleteFoodEntry, deleteSavedMeal, getProfile, logSavedMeal, saveFavouriteFood, saveFoodEntry, saveFoodEstimate, saveSavedMeal, startWorkout, upsertWeight } from "./services/fitness.ts"
+import { analyzeFoodImage, analyzeFoodText, completeWorkoutSession, copyMealFromDate, deleteFavouriteFood, deleteFoodEntry, deleteSavedMeal, getProfile, logSavedMeal, saveFavouriteFood, saveFoodEntry, saveFoodEstimate, saveSavedMeal, startWorkout, upsertWeight } from "./services/fitness.ts"
 import { AuthPage } from "./pages/AuthPage.tsx"
 import { FoodPage } from "./pages/FoodPage.tsx"
 import { HomePage } from "./pages/HomePage.tsx"
@@ -150,7 +150,7 @@ function MainApp({ user, profile }: { user: User; profile: Profile }) {
       )}
       {modal?.type === "fast-food" && (
         <Modal title="Add food" description="Reuse something familiar or enter it manually." onClose={() => setModal(null)}>
-          <FastFoodDialog foodEntries={data.foodEntries} favourites={data.favouriteFoods} savedMeals={data.savedMeals} defaultMealType={lastMealType} initialSeed={modal.seed} initialTab={modal.initialTab} initialMealInput={modal.initialMeal} onAdd={handleFoodSave} onSaveFavourite={handleSaveFavourite} onDeleteFavourite={handleDeleteFavourite} onSaveMeal={handleSaveMeal} onDeleteMeal={handleDeleteSavedMeal} onLogMeal={handleLogSavedMeal} onAnalyzeFood={analyzeFoodText} onLogEstimate={handleFoodEstimateSave} onClose={() => setModal(null)} />
+          <FastFoodDialog foodEntries={data.foodEntries} favourites={data.favouriteFoods} savedMeals={data.savedMeals} defaultMealType={lastMealType} initialSeed={modal.seed} initialTab={modal.initialTab} initialMealInput={modal.initialMeal} onAdd={handleFoodSave} onSaveFavourite={handleSaveFavourite} onDeleteFavourite={handleDeleteFavourite} onSaveMeal={handleSaveMeal} onDeleteMeal={handleDeleteSavedMeal} onLogMeal={handleLogSavedMeal} onAnalyzeFood={analyzeFoodText} onAnalyzeImage={analyzeFoodImage} onLogEstimate={handleFoodEstimateSave} onClose={() => setModal(null)} />
         </Modal>
       )}
       {modal?.type === "weight" && (
