@@ -39,7 +39,7 @@ export function createRoutineWorkoutDraft(
   return routine.exercises
     .filter((exercise) => mode === "normal" || exercise.include_in_light)
     .map((exercise) => {
-      const previous = findPreviousExercisePerformance(sessions, exercise.exercise_id, exercise.exercise_name)
+      void sessions
       const targetSets = mode === "light"
         ? exercise.light_target_sets ?? Math.min(2, exercise.target_sets)
         : exercise.target_sets
@@ -52,9 +52,9 @@ export function createRoutineWorkoutDraft(
         targetRepMax: exercise.target_rep_max,
         progressionStepKg: exercise.progression_step_kg,
         skipped: false,
-        sets: Array.from({ length: targetSets }, (_, index) => ({
-          weightKg: previous?.sets[index]?.weight_kg ?? previous?.sets.at(-1)?.weight_kg ?? null,
-          reps: previous?.sets[index]?.reps ?? previous?.sets.at(-1)?.reps ?? exercise.target_rep_min,
+        sets: Array.from({ length: targetSets }, () => ({
+          weightKg: null,
+          reps: 0,
           completed: false,
         })),
       }

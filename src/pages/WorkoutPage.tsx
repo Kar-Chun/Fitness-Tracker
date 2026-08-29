@@ -8,7 +8,7 @@ import { RoutineBuilder } from "../components/workout/RoutineBuilder.tsx"
 import { WorkoutCompletionSummary } from "../components/workout/WorkoutCompletionSummary.tsx"
 import { EmptyState, IconBadge, PageHeader, SectionHeader, Surface } from "../components/shared/Visual.tsx"
 import { completeWorkoutSession, deleteRoutine, discardWorkoutSession, saveCustomExercise, saveFinishedWorkout, saveRoutine, startWorkout, startWorkoutFromSession } from "../services/fitness.ts"
-import type { FinishedWorkoutInput, FitnessData, RoutineInput, WorkoutSessionWithDetails, WorkoutTemplate } from "../types/fitness.ts"
+import type { CustomExerciseInput, FinishedWorkoutInput, FitnessData, RoutineInput, WorkoutSessionWithDetails, WorkoutTemplate } from "../types/fitness.ts"
 
 type WorkoutView =
   | { type: "overview" }
@@ -78,10 +78,10 @@ export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh }: WorkoutP
     })
   }
 
-  async function finishActive() {
+  async function finishActive(completedDraft?: WorkoutSessionWithDetails) {
     if (!activeSession) return
     const template = activeSession.template_id ? data.templates.find((item) => item.id === activeSession.template_id) ?? null : null
-    const completed = { ...activeSession, completed_at: new Date().toISOString() }
+    const completed = completedDraft ?? { ...activeSession, completed_at: new Date().toISOString() }
     await run(async () => {
       await completeWorkoutSession(userId, activeSession.id)
       await onRefresh()
@@ -103,6 +103,12 @@ export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh }: WorkoutP
       await onRefresh()
       setView({ type: "overview" })
     })
+  }
+
+  async function handleCreateCustom(input: CustomExerciseInput) {
+    const created = await saveCustomExercise(userId, input)
+    await onRefresh()
+    return created
   }
 
   async function handleDeleteRoutine(routine: WorkoutTemplate) {
@@ -127,14 +133,14 @@ export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh }: WorkoutP
   }
 
   if (activeSession) {
-    return <LiveWorkoutLogger userId={userId} session={activeSession} data={data} dumbbellMaxKg={dumbbellMaxKg} onRefresh={onRefresh} onFinish={finishActive} onDiscard={discardActive} />
+    return <LiveWorkoutLogger userId={userId} session={activeSession} data={data} dumbbellMaxKg={dumbbellMaxKg} onCreateCustom={handleCreateCustom} onFinish={finishActive} onDiscard={discardActive} />
   }
 
   if (view.type === "builder") {
     return (
       <div className="grid gap-5">
         <PageHeader eyebrow={view.routine ? "Edit your plan" : "Build around how you train"} title={view.routine ? "Edit routine" : "Create routine"} />
-        <RoutineBuilder routine={view.routine} library={data.exercises} onSave={handleSaveRoutine} onCreateCustom={async (input) => { await saveCustomExercise(userId, input); await onRefresh() }} onCancel={() => setView({ type: "overview" })} />
+        <RoutineBuilder routine={view.routine} library={data.exercises} sessions={data.sessions} onSave={handleSaveRoutine} onCreateCustom={handleCreateCustom} onCancel={() => setView({ type: "overview" })} />
       </div>
     )
   }
@@ -155,7 +161,7 @@ export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh }: WorkoutP
     return (
       <div className="grid gap-5">
         <PageHeader eyebrow="Quick retrospective entry" title="Log finished workout" />
-        <FinishedWorkoutLogger data={data} routine={view.routine} recentSession={view.recent} onSave={handleSaveFinished} onCancel={() => setView({ type: "overview" })} />
+        <FinishedWorkoutLogger data={data} routine={view.routine} recentSession={view.recent} onCreateCustom={handleCreateCustom} onSave={handleSaveFinished} onCancel={() => setView({ type: "overview" })} />
       </div>
     )
   }

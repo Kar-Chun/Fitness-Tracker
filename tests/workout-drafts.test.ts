@@ -51,9 +51,9 @@ test("routine order is preserved and Light includes only selected exercises", ()
   assert.equal(light[0]?.sets.length, 2)
 })
 
-test("previous sets prefill a new draft without becoming completed performance", () => {
+test("a new routine draft does not silently copy previous performance", () => {
   const draft = createRoutineWorkoutDraft(routine, [previous], "normal")
-  assert.deepEqual(draft[0]?.sets.map((set) => [set.weightKg, set.reps]), [[15, 10], [15, 10], [15, 8]])
+  assert.deepEqual(draft[0]?.sets.map((set) => [set.weightKg, set.reps]), [[null, 0], [null, 0], [null, 0]])
   assert.equal(draft[0]?.sets.every((set) => !set.completed), true)
   assert.equal(previous.session_exercises[0]?.sets.length, 3)
 })

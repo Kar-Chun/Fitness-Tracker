@@ -598,9 +598,9 @@ export async function saveCustomExercise(userId: string, input: CustomExerciseIn
     progression_step_kg: input.progressionStepKg,
   }
   const result = id
-    ? await supabase.from("exercises").update(payload).eq("id", id).eq("user_id", userId)
-    : await supabase.from("exercises").insert(payload)
-  if (result.error) throw new Error(result.error.message)
+    ? await supabase.from("exercises").update(payload).eq("id", id).eq("user_id", userId).select("*").single()
+    : await supabase.from("exercises").insert(payload).select("*").single()
+  return requireData(result.data, result.error, "Could not save exercise.") as ExerciseLibraryItem
 }
 
 export async function deleteCustomExercise(userId: string, id: string) {
@@ -764,6 +764,11 @@ export async function setSessionExerciseStatus(userId: string, id: string, statu
   if (error) throw new Error(error.message)
 }
 
+export async function deleteWorkoutSessionExercise(userId: string, id: string) {
+  const { error } = await supabase.from("workout_session_exercises").delete().eq("id", id).eq("user_id", userId)
+  if (error) throw new Error(error.message)
+}
+
 export async function replaceSessionExercise(userId: string, id: string, exercise: ExerciseLibraryItem) {
   const { error } = await supabase.from("workout_session_exercises").update({
     exercise_id: exercise.id,
@@ -803,6 +808,11 @@ export async function saveExerciseSet(
 
 export async function deleteExerciseSet(userId: string, id: string) {
   const { error } = await supabase.from("exercise_sets").delete().eq("id", id).eq("user_id", userId)
+  if (error) throw new Error(error.message)
+}
+
+export async function deleteExerciseSetsForSessionExercise(userId: string, sessionExerciseId: string) {
+  const { error } = await supabase.from("exercise_sets").delete().eq("session_exercise_id", sessionExerciseId).eq("user_id", userId)
   if (error) throw new Error(error.message)
 }
 

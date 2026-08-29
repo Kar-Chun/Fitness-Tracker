@@ -1,35 +1,32 @@
-import { useMemo, useState } from "react"
-import { ArrowDown, ArrowUp, LoaderCircle, Plus, Trash2 } from "lucide-react"
+import { useState } from "react"
+import { ArrowDown, ArrowUp, ChevronDown, LoaderCircle, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { FieldShell, Input, Select } from "../shared/FormField.tsx"
+import { FieldShell, Input } from "../shared/FormField.tsx"
 import { InlineError } from "../shared/Feedback.tsx"
+import { ExerciseSearch } from "./ExerciseSearch.tsx"
 import { loadTypeLabel, routineToInput } from "../../lib/workout-drafts.ts"
-import type { CustomExerciseInput, ExerciseCategory, ExerciseLibraryItem, ExerciseLoadType, RoutineExerciseInput, RoutineInput, WorkoutTemplate } from "../../types/fitness.ts"
+import type { CustomExerciseInput, ExerciseLibraryItem, RoutineExerciseInput, RoutineInput, WorkoutSessionWithDetails, WorkoutTemplate } from "../../types/fitness.ts"
 
 interface RoutineBuilderProps {
   routine: WorkoutTemplate | null
   library: ExerciseLibraryItem[]
+  sessions: WorkoutSessionWithDetails[]
   onSave: (input: RoutineInput, id?: string) => Promise<void>
-  onCreateCustom: (input: CustomExerciseInput) => Promise<void>
+  onCreateCustom: (input: CustomExerciseInput) => Promise<ExerciseLibraryItem>
   onCancel: () => void
 }
 
-export function RoutineBuilder({ routine, library, onSave, onCreateCustom, onCancel }: RoutineBuilderProps) {
+export function RoutineBuilder({ routine, library, sessions, onSave, onCreateCustom, onCancel }: RoutineBuilderProps) {
   const initial = routine ? routineToInput(routine) : { name: "", exercises: [] }
   const [name, setName] = useState(initial.name)
   const [exercises, setExercises] = useState<RoutineExerciseInput[]>(initial.exercises)
-  const [selectedId, setSelectedId] = useState(library[0]?.id ?? "")
-  const [showCustom, setShowCustom] = useState(false)
-  const [customName, setCustomName] = useState("")
-  const [customCategory, setCustomCategory] = useState<ExerciseCategory>("other")
-  const [customLoad, setCustomLoad] = useState<ExerciseLoadType>("per_dumbbell")
-  const [customStep, setCustomStep] = useState("2.5")
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
+  const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  const selected = useMemo(() => library.find((exercise) => exercise.id === selectedId), [library, selectedId])
 
-  function addExercise() {
-    if (!selected) return
+  function addExercise(selected: ExerciseLibraryItem) {
+    const nextIndex = exercises.length
     setExercises((current) => [...current, {
       exerciseId: selected.id,
       exerciseName: selected.name,
@@ -41,6 +38,9 @@ export function RoutineBuilder({ routine, library, onSave, onCreateCustom, onCan
       lightTargetSets: 2,
       progressionStepKg: selected.progression_step_kg,
     }])
+    setExpandedIndex(nextIndex)
+    setHighlightedIndex(nextIndex)
+    window.setTimeout(() => setHighlightedIndex(null), 1_500)
   }
 
   function updateExercise(index: number, change: Partial<RoutineExerciseInput>) {
@@ -58,23 +58,7 @@ export function RoutineBuilder({ routine, library, onSave, onCreateCustom, onCan
       next.splice(nextIndex, 0, item)
       return next
     })
-  }
-
-  async function createCustom() {
-    const step = customStep.trim() === "" ? null : Number(customStep)
-    if (!customName.trim()) return setError("Custom exercise name is required.")
-    if (step !== null && (!Number.isFinite(step) || step < 0)) return setError("Check the progression step.")
-    setSaving(true)
-    setError("")
-    try {
-      await onCreateCustom({ name: customName, category: customCategory, loadType: customLoad, progressionStepKg: step })
-      setCustomName("")
-      setShowCustom(false)
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "Could not create exercise.")
-    } finally {
-      setSaving(false)
-    }
+    setExpandedIndex(nextIndex)
   }
 
   async function save() {
@@ -90,52 +74,44 @@ export function RoutineBuilder({ routine, library, onSave, onCreateCustom, onCan
   }
 
   return (
-    <div className="grid gap-5">
+    <div className="mx-auto grid w-full max-w-3xl gap-6">
       <FieldShell label="Routine name" htmlFor="routine-name"><Input id="routine-name" autoFocus maxLength={80} value={name} onChange={(event) => setName(event.target.value)} placeholder="Chest + Triceps" /></FieldShell>
 
-      <div>
-        <p className="mb-2 text-sm font-medium text-slate-200">Add exercise</p>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-          <Select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} aria-label="Exercise library">
-            {library.map((exercise) => <option key={exercise.id} value={exercise.id}>{exercise.name} · {loadTypeLabel(exercise.load_type)}</option>)}
-          </Select>
-          <Button size="icon-lg" className="size-11" onClick={addExercise} aria-label="Add exercise"><Plus /></Button>
+      <section className="grid gap-3" aria-labelledby="routine-exercises-title">
+        <div><h2 id="routine-exercises-title" className="font-medium text-slate-100">Exercises</h2><p className="mt-1 text-sm text-slate-500">Targets stay inline and can be changed at any time.</p></div>
+        <div className="grid gap-2">
+          {exercises.map((exercise, index) => {
+            const expanded = expandedIndex === index
+            return (
+              <article key={`${exercise.exerciseId}-${index}`} className={`rounded-2xl border bg-slate-950/55 transition duration-300 ${highlightedIndex === index ? "border-blue-400/60 ring-2 ring-blue-400/15" : "border-slate-800"}`}>
+                <div className="flex min-h-16 items-center justify-between gap-3 p-3 sm:p-4">
+                  <button type="button" className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" onClick={() => setExpandedIndex(expanded ? null : index)} aria-expanded={expanded}>
+                    <p className="truncate font-medium text-slate-100">{exercise.exerciseName}</p>
+                    <p className="mt-1 text-xs text-slate-500">{exercise.targetSets} sets · {exercise.targetRepMin}–{exercise.targetRepMax} reps · {loadTypeLabel(exercise.loadType)}</p>
+                  </button>
+                  <div className="flex shrink-0 items-center gap-0.5"><Button type="button" size="icon-sm" variant="ghost" onClick={() => move(index, -1)} disabled={index === 0} aria-label={`Move ${exercise.exerciseName} up`}><ArrowUp /></Button><Button type="button" size="icon-sm" variant="ghost" onClick={() => move(index, 1)} disabled={index === exercises.length - 1} aria-label={`Move ${exercise.exerciseName} down`}><ArrowDown /></Button><Button type="button" size="icon-sm" variant="ghost" className="text-red-300" onClick={() => { setExercises((current) => current.filter((_, exerciseIndex) => exerciseIndex !== index)); setExpandedIndex(null) }} aria-label={`Remove ${exercise.exerciseName}`}><Trash2 /></Button><Button type="button" size="icon-sm" variant="ghost" onClick={() => setExpandedIndex(expanded ? null : index)} aria-label={`${expanded ? "Collapse" : "Edit"} ${exercise.exerciseName}`}><ChevronDown className={`transition ${expanded ? "rotate-180" : ""}`} /></Button></div>
+                </div>
+                {expanded && (
+                  <div className="grid gap-4 border-t border-slate-800 p-3 sm:p-4">
+                    <div className="grid grid-cols-3 gap-2">
+                      <FieldShell label="Sets" htmlFor={`routine-${index}-sets`}><Input id={`routine-${index}-sets`} type="number" min="1" max="20" inputMode="numeric" value={exercise.targetSets} onChange={(event) => updateExercise(index, { targetSets: Number(event.target.value) })} /></FieldShell>
+                      <FieldShell label="Min reps" htmlFor={`routine-${index}-min`}><Input id={`routine-${index}-min`} type="number" min="0" inputMode="numeric" value={exercise.targetRepMin} onChange={(event) => updateExercise(index, { targetRepMin: Number(event.target.value) })} /></FieldShell>
+                      <FieldShell label="Max reps" htmlFor={`routine-${index}-max`}><Input id={`routine-${index}-max`} type="number" min="0" inputMode="numeric" value={exercise.targetRepMax} onChange={(event) => updateExercise(index, { targetRepMax: Number(event.target.value) })} /></FieldShell>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <label className="flex min-h-10 items-center gap-2 text-sm text-slate-300"><input type="checkbox" className="size-5 accent-blue-500" checked={exercise.includeInLight} onChange={(event) => updateExercise(index, { includeInLight: event.target.checked })} /> Include in Light</label>
+                      {exercise.includeInLight && <label className="flex items-center gap-2 text-xs text-slate-500">Light sets <Input className="w-20" type="number" min="1" max={exercise.targetSets} inputMode="numeric" value={exercise.lightTargetSets ?? Math.min(2, exercise.targetSets)} onChange={(event) => updateExercise(index, { lightTargetSets: Number(event.target.value) })} /></label>}
+                    </div>
+                  </div>
+                )}
+              </article>
+            )
+          })}
+          {!exercises.length && <p className="rounded-2xl border border-dashed border-slate-800 p-6 text-center text-sm text-slate-500">Add any exercises you want. There is no enforced split or minimum.</p>}
         </div>
-        <Button variant="ghost" className="mt-2 px-0 text-blue-300" onClick={() => setShowCustom((value) => !value)}>+ Create custom exercise</Button>
-      </div>
+      </section>
 
-      {showCustom && (
-        <div className="grid gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-          <FieldShell label="Exercise name" htmlFor="custom-exercise-name"><Input id="custom-exercise-name" value={customName} onChange={(event) => setCustomName(event.target.value)} /></FieldShell>
-          <div className="grid grid-cols-2 gap-2">
-            <FieldShell label="Category" htmlFor="custom-category"><Select id="custom-category" value={customCategory} onChange={(event) => setCustomCategory(event.target.value as ExerciseCategory)}>{["chest", "back", "shoulders", "arms", "legs", "core", "other"].map((value) => <option key={value} value={value}>{value}</option>)}</Select></FieldShell>
-            <FieldShell label="Load type" htmlFor="custom-load"><Select id="custom-load" value={customLoad} onChange={(event) => setCustomLoad(event.target.value as ExerciseLoadType)}><option value="per_dumbbell">Per dumbbell</option><option value="total">Total load</option><option value="bodyweight">Bodyweight</option><option value="none">No load</option></Select></FieldShell>
-          </div>
-          <FieldShell label="Progression step" hint="kg, optional" htmlFor="custom-step"><Input id="custom-step" type="number" min="0" step="0.5" inputMode="decimal" value={customStep} onChange={(event) => setCustomStep(event.target.value)} /></FieldShell>
-          <Button variant="outline" onClick={createCustom} disabled={saving}>Create exercise</Button>
-        </div>
-      )}
-
-      <div className="grid gap-3">
-        {exercises.map((exercise, index) => (
-          <section key={`${exercise.exerciseId}-${index}`} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div><h3 className="font-medium text-slate-100">{exercise.exerciseName}</h3><p className="mt-1 text-xs text-slate-500">{loadTypeLabel(exercise.loadType)}</p></div>
-              <div className="flex gap-1"><Button size="icon-sm" variant="ghost" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move exercise up"><ArrowUp /></Button><Button size="icon-sm" variant="ghost" onClick={() => move(index, 1)} disabled={index === exercises.length - 1} aria-label="Move exercise down"><ArrowDown /></Button><Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExercises((current) => current.filter((_, exerciseIndex) => exerciseIndex !== index))} aria-label="Remove exercise"><Trash2 /></Button></div>
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <FieldShell label="Sets" htmlFor={`routine-${index}-sets`}><Input id={`routine-${index}-sets`} type="number" min="1" max="20" inputMode="numeric" value={exercise.targetSets} onChange={(event) => updateExercise(index, { targetSets: Number(event.target.value) })} /></FieldShell>
-              <FieldShell label="Min reps" htmlFor={`routine-${index}-min`}><Input id={`routine-${index}-min`} type="number" min="0" inputMode="numeric" value={exercise.targetRepMin} onChange={(event) => updateExercise(index, { targetRepMin: Number(event.target.value) })} /></FieldShell>
-              <FieldShell label="Max reps" htmlFor={`routine-${index}-max`}><Input id={`routine-${index}-max`} type="number" min="0" inputMode="numeric" value={exercise.targetRepMax} onChange={(event) => updateExercise(index, { targetRepMax: Number(event.target.value) })} /></FieldShell>
-            </div>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <label className="flex min-h-10 items-center gap-2 text-sm text-slate-300"><input type="checkbox" className="size-5 accent-blue-500" checked={exercise.includeInLight} onChange={(event) => updateExercise(index, { includeInLight: event.target.checked })} /> Include in Light</label>
-              {exercise.includeInLight && <label className="flex items-center gap-2 text-xs text-slate-500">Light sets <Input className="w-20" type="number" min="1" max={exercise.targetSets} inputMode="numeric" value={exercise.lightTargetSets ?? Math.min(2, exercise.targetSets)} onChange={(event) => updateExercise(index, { lightTargetSets: Number(event.target.value) })} /></label>}
-            </div>
-          </section>
-        ))}
-        {!exercises.length && <p className="rounded-2xl border border-dashed border-slate-800 p-6 text-center text-sm text-slate-500">Add any exercises you want. The app does not enforce a split or minimum.</p>}
-      </div>
+      <section className="grid gap-3"><div><h2 className="font-medium text-slate-100">Add exercise</h2><p className="mt-1 text-sm text-slate-500">Search the library or create one without leaving this routine.</p></div><ExerciseSearch library={library} sessions={sessions} excludedIds={exercises.map((exercise) => exercise.exerciseId)} onAdd={addExercise} onCreateCustom={onCreateCustom} /></section>
       <InlineError message={error} />
       <div className="grid gap-2 sm:grid-cols-2"><Button size="lg" className="h-11" disabled={saving} onClick={save}>{saving && <LoaderCircle className="animate-spin" />} Save routine</Button><Button size="lg" variant="ghost" onClick={onCancel}>Cancel</Button></div>
     </div>
