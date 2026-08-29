@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, Copy, LoaderCircle, Pencil, Plus, RotateCcw, Save, Star, Trash2, Utensils } from "lucide-react"
+import { CheckCircle2, ChevronLeft, ChevronRight, Copy, LoaderCircle, Pencil, Plus, RotateCcw, Save, Star, Trash2, Utensils } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { caloriesConsumed, caloriesRemaining } from "../lib/calculations.ts"
 import { formatDateTime, formatShortDate, toLocalDateKey, toLocalDateTimeInput } from "../lib/date.ts"
@@ -17,6 +17,7 @@ interface FoodPageProps {
   onSaveAsMeal: (entries: FoodEntry[], mealType: MealType) => void
   onCopyMeal: (entries: FoodEntry[]) => Promise<void>
   onLogSavedMeal: (meal: SavedMeal) => Promise<void>
+  onSetDayComplete: (date: string, isComplete: boolean) => Promise<void>
 }
 
 const mealLabels: Record<MealType, string> = {
@@ -32,13 +33,14 @@ function moveDate(dateKey: string, amount: number) {
   return toLocalDateKey(date)
 }
 
-export function FoodPage({ data, onAdd, onQuickAdd, onEdit, onDelete, onToggleFavourite, onSaveAsMeal, onCopyMeal, onLogSavedMeal }: FoodPageProps) {
+export function FoodPage({ data, onAdd, onQuickAdd, onEdit, onDelete, onToggleFavourite, onSaveAsMeal, onCopyMeal, onLogSavedMeal, onSetDayComplete }: FoodPageProps) {
   const today = toLocalDateKey()
   const yesterday = moveDate(today, -1)
   const [selectedDate, setSelectedDate] = useState(today)
   const [busyMeal, setBusyMeal] = useState("")
   const [busyFavourite, setBusyFavourite] = useState("")
   const [error, setError] = useState("")
+  const [completionBusy, setCompletionBusy] = useState(false)
   const entries = data.foodEntries.filter((entry) => toLocalDateKey(entry.eaten_at) === selectedDate)
   const consumed = caloriesConsumed(entries)
   const target = data.calorieTarget?.calories ?? 0
@@ -48,6 +50,16 @@ export function FoodPage({ data, onAdd, onQuickAdd, onEdit, onDelete, onToggleFa
     .map((meal) => ({ meal, entries: entries.filter((entry) => entry.meal_type === meal) }))
     .filter((group) => group.entries.length)
   const dateLabel = selectedDate === today ? "Today" : selectedDate === yesterday ? "Yesterday" : formatShortDate(selectedDate)
+  const isComplete = data.dailyFoodLogStatuses.some((status) => status.date === selectedDate && status.is_complete)
+
+  async function toggleComplete() {
+    if (completionBusy) return
+    setCompletionBusy(true)
+    setError("")
+    try { await onSetDayComplete(selectedDate, !isComplete) }
+    catch (completionError) { setError(completionError instanceof Error ? completionError.message : "Could not update this food log.") }
+    finally { setCompletionBusy(false) }
+  }
 
   async function copyMeal(mealEntries: FoodEntry[], mealType: MealType) {
     if (busyMeal) return
@@ -102,6 +114,11 @@ export function FoodPage({ data, onAdd, onQuickAdd, onEdit, onDelete, onToggleFa
         <div><p className="text-xs text-slate-500 sm:text-sm">Eaten</p><p className="mt-1 text-xl font-semibold tabular-nums sm:text-3xl">{consumed.toLocaleString()}</p></div>
         <div className="border-x border-slate-800 px-3 sm:px-5"><p className="text-xs text-slate-500 sm:text-sm">Target</p><p className="mt-1 text-xl font-semibold tabular-nums sm:text-3xl">{target.toLocaleString()}</p></div>
         <div><p className="text-xs text-slate-500 sm:text-sm">Remaining</p><p className={`mt-1 text-xl font-semibold tabular-nums sm:text-3xl ${remaining < 0 ? "text-amber-300" : "text-blue-400"}`}>{remaining.toLocaleString()}</p></div>
+      </section>
+
+      <section className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${isComplete ? "border-emerald-400/20 bg-emerald-400/5" : "border-slate-800 bg-slate-900"}`}>
+        <div className="flex items-center gap-3"><CheckCircle2 className={`size-5 ${isComplete ? "text-emerald-400" : "text-slate-600"}`} /><div><p className="text-sm font-medium text-slate-200">{isComplete ? "Food log marked complete" : "Done logging this day?"}</p><p className="mt-0.5 text-xs text-slate-500">Only complete days contribute to adaptive calorie reviews.</p></div></div>
+        <Button variant="outline" size="sm" disabled={completionBusy} onClick={toggleComplete}>{completionBusy && <LoaderCircle className="animate-spin" />}{isComplete ? "Undo" : "Done logging"}</Button>
       </section>
 
       {error && <p className="rounded-xl bg-red-400/10 px-3 py-2 text-sm text-red-200">{error}</p>}

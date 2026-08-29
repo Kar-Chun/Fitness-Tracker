@@ -7,10 +7,13 @@ import { FoodEntryForm } from "./components/food/FoodEntryForm.tsx"
 import { FastFoodDialog } from "./components/food/FastFoodDialog.tsx"
 import { WeightForm } from "./components/weight/WeightForm.tsx"
 import { EquipmentSettings } from "./components/workout/EquipmentSettings.tsx"
+import { CalorieReviewPanel } from "./components/calories/CalorieReviewPanel.tsx"
+import { AdaptiveCalorieSettings } from "./components/calories/AdaptiveCalorieSettings.tsx"
 import { useAuth } from "./hooks/use-auth.ts"
 import { useFitnessData } from "./hooks/use-fitness-data.ts"
 import { getWeightTrend } from "./lib/calculations.ts"
-import { analyzeFoodImage, analyzeFoodText, copyMealFromDate, deleteFavouriteFood, deleteFoodEntry, deleteSavedMeal, getProfile, logSavedMeal, saveEquipmentSettings, saveFavouriteFood, saveFoodEntry, saveFoodEstimate, saveSavedMeal, upsertWeight } from "./services/fitness.ts"
+import { evaluateCalorieReview } from "./lib/calorie-adaptation.ts"
+import { acceptCalorieReview, analyzeFoodImage, analyzeFoodText, copyMealFromDate, createCalorieReview, deleteFavouriteFood, deleteFoodEntry, deleteSavedMeal, dismissCalorieReview, getProfile, logSavedMeal, saveEquipmentSettings, saveFavouriteFood, saveFoodEntry, saveFoodEstimate, saveSavedMeal, setAdaptiveCalorieEnabled, setDailyFoodLogComplete, upsertWeight } from "./services/fitness.ts"
 import { AuthPage } from "./pages/AuthPage.tsx"
 import { FoodPage } from "./pages/FoodPage.tsx"
 import { HomePage } from "./pages/HomePage.tsx"
@@ -28,6 +31,7 @@ type ModalState =
   | { type: "fast-food"; seed?: FoodEntryInput; initialTab?: FastFoodTab; initialMeal?: SavedMealInput }
   | { type: "weight" }
   | { type: "account" }
+  | { type: "calorie-review" }
   | null
 
 function getInitialTab(): AppTab {
@@ -116,17 +120,40 @@ function MainApp({ user, profile, onProfileRefresh }: { user: User; profile: Pro
     setModal(null)
   }
 
+  async function handleFoodLogCompletion(date: string, isComplete: boolean) {
+    await setDailyFoodLogComplete(user.id, date, isComplete)
+    await refresh()
+  }
+
   if (loading) return <AppShell activeTab={tab} onTabChange={changeTab} onOpenAccount={() => setModal({ type: "account" })} email={user.email}><PageLoader /></AppShell>
   if (error || !data) return <AppShell activeTab={tab} onTabChange={changeTab} onOpenAccount={() => setModal({ type: "account" })} email={user.email}><ErrorState message={error || "No data was returned."} onRetry={refresh} /></AppShell>
 
   const trend = getWeightTrend(data.weightEntries)
+  const adaptiveReview = profile.adaptive_calorie_enabled && data.calorieTarget ? evaluateCalorieReview({
+    goal: profile.goal,
+    currentTarget: data.calorieTarget.calories,
+    targetHistory: data.calorieTargetHistory,
+    weights: data.weightEntries,
+    foodEntries: data.foodEntries,
+    foodStatuses: data.dailyFoodLogStatuses,
+    previousReviews: data.calorieReviews,
+  }) : undefined
+
+  async function acknowledgeCalorieReview(accept: boolean) {
+    if (!adaptiveReview || adaptiveReview.status === "insufficient_data") return
+    const review = await createCalorieReview(user.id, profile.goal, adaptiveReview)
+    if (accept && adaptiveReview.suggestedTarget !== null) await acceptCalorieReview(review.id)
+    else await dismissCalorieReview(user.id, review.id)
+    await refresh()
+    setModal(null)
+  }
   return (
     <AppShell activeTab={tab} onTabChange={changeTab} onOpenAccount={() => setModal({ type: "account" })} email={user.email}>
       {actionError && <div className="mb-5"><ErrorState message={actionError} /></div>}
-      {tab === "home" && <HomePage data={data} onAddFood={() => setModal({ type: "fast-food" })} onLogWeight={() => setModal({ type: "weight" })} onOpenWorkout={() => changeTab("workout")} />}
-      {tab === "food" && <FoodPage data={data} onAdd={() => setModal({ type: "fast-food" })} onQuickAdd={(seed) => setModal({ type: "fast-food", seed })} onEdit={(entry) => setModal({ type: "food", entry })} onDelete={handleDeleteFood} onToggleFavourite={handleToggleFavourite} onSaveAsMeal={(entries, mealType) => setModal({ type: "fast-food", initialTab: "meals", initialMeal: { name: "", defaultMealType: mealType, items: entries.map((entry) => ({ name: entry.name, calories: entry.calories, proteinG: entry.protein_g })) } })} onCopyMeal={handleCopyMeal} onLogSavedMeal={handleLogSavedMeal} />}
+      {tab === "home" && <HomePage data={data} onAddFood={() => setModal({ type: "fast-food" })} onLogWeight={() => setModal({ type: "weight" })} onOpenWorkout={() => changeTab("workout")} adaptiveReview={adaptiveReview} onOpenCalorieReview={() => setModal({ type: "calorie-review" })} />}
+      {tab === "food" && <FoodPage data={data} onAdd={() => setModal({ type: "fast-food" })} onQuickAdd={(seed) => setModal({ type: "fast-food", seed })} onEdit={(entry) => setModal({ type: "food", entry })} onDelete={handleDeleteFood} onToggleFavourite={handleToggleFavourite} onSaveAsMeal={(entries, mealType) => setModal({ type: "fast-food", initialTab: "meals", initialMeal: { name: "", defaultMealType: mealType, items: entries.map((entry) => ({ name: entry.name, calories: entry.calories, proteinG: entry.protein_g })) } })} onCopyMeal={handleCopyMeal} onLogSavedMeal={handleLogSavedMeal} onSetDayComplete={handleFoodLogCompletion} />}
       {tab === "workout" && <WorkoutPage userId={user.id} data={data} dumbbellMaxKg={profile.has_adjustable_dumbbells ? profile.dumbbell_max_kg : null} onRefresh={refresh} />}
-      {tab === "progress" && <ProgressPage data={data} />}
+      {tab === "progress" && <ProgressPage data={data} adaptiveReview={adaptiveReview} onOpenCalorieReview={() => setModal({ type: "calorie-review" })} />}
 
       {modal?.type === "food" && (
         <Modal title="Edit food" description="Historical entries keep the values saved on that day." onClose={() => setModal(null)}>
@@ -143,15 +170,21 @@ function MainApp({ user, profile, onProfileRefresh }: { user: User; profile: Pro
           <WeightForm latestWeight={trend.latest} onSubmit={handleWeightSave} onCancel={() => setModal(null)} />
         </Modal>
       )}
+      {modal?.type === "calorie-review" && adaptiveReview && adaptiveReview.status !== "insufficient_data" && (
+        <Modal title="Weekly Calorie Review" description="A conservative check based on two weeks of complete logs." onClose={() => setModal(null)}>
+          <CalorieReviewPanel result={adaptiveReview} onAccept={() => acknowledgeCalorieReview(true)} onKeep={() => acknowledgeCalorieReview(false)} />
+        </Modal>
+      )}
       {modal?.type === "account" && (
         <Modal title="Profile & settings" description={user.email} onClose={() => setModal(null)}>
           <dl className="grid grid-cols-2 gap-4 rounded-2xl bg-slate-950 p-4 text-sm">
             <div><dt className="text-slate-500">Goal</dt><dd className="mt-1 capitalize text-slate-200">{profile.goal} weight</dd></div>
             <div><dt className="text-slate-500">Activity</dt><dd className="mt-1 capitalize text-slate-200">{profile.activity_level === "light" ? "Lightly active" : profile.activity_level}</dd></div>
             <div><dt className="text-slate-500">Height</dt><dd className="mt-1 text-slate-200">{profile.height_cm} cm</dd></div>
-            <div><dt className="text-slate-500">Starting target</dt><dd className="mt-1 text-slate-200">{data.calorieTarget?.calories.toLocaleString() ?? "—"} kcal</dd></div>
+            <div><dt className="text-slate-500">Current target</dt><dd className="mt-1 text-slate-200">{data.calorieTarget?.calories.toLocaleString() ?? "—"} kcal</dd></div>
           </dl>
-          <p className="mt-4 text-xs leading-5 text-slate-500">Your calorie target is the starting estimate from onboarding. V1 does not adjust it automatically.</p>
+          <p className="mt-4 text-xs leading-5 text-slate-500">Formula baseline: {data.calorieTargetHistory.find((target) => target.reason === "initial_estimate" || target.reason === "profile_recalculation")?.calories.toLocaleString() ?? "—"} kcal. Accepted adaptive changes create new history rows and never overwrite it.</p>
+          <AdaptiveCalorieSettings enabled={profile.adaptive_calorie_enabled} onToggle={async (enabled) => { await setAdaptiveCalorieEnabled(user.id, enabled); await onProfileRefresh(); await refresh() }} />
           <EquipmentSettings profile={profile} onSave={async (input) => { await saveEquipmentSettings(user.id, input); await onProfileRefresh() }} />
           <Button variant="outline" size="lg" className="mt-6 h-11 w-full text-red-200 hover:text-red-100" onClick={() => supabase.auth.signOut()}><LogOut /> Sign out</Button>
         </Modal>

@@ -9,8 +9,10 @@ import {
   savedMealToFoodInputs,
 } from "../lib/food-history.ts"
 import type {
+  CalorieReview,
   CalorieTarget,
   CustomExerciseInput,
+  DailyFoodLogStatus,
   EquipmentSettingsInput,
   ExerciseLibraryItem,
   ExerciseSet,
@@ -38,6 +40,7 @@ import type {
   WorkoutTemplate,
   WorkoutTemplateExercise,
 } from "../types/fitness.ts"
+import type { AdaptiveReviewResult } from "../lib/calorie-adaptation.ts"
 
 function requireData<T>(data: T | null, error: { message: string } | null, fallback: string): T {
   if (error) throw new Error(error.message)
@@ -137,7 +140,7 @@ export async function completeOnboarding(userId: string, input: OnboardingInput)
 }
 
 export async function loadFitnessData(userId: string): Promise<FitnessData> {
-  const [targetResult, foodResult, favouriteResult, savedMealResult, weightResult, templateResult, sessionResult, exerciseResult, sessionExerciseResult] = await Promise.all([
+  const [targetResult, targetHistoryResult, foodStatusResult, reviewResult, foodResult, favouriteResult, savedMealResult, weightResult, templateResult, sessionResult, exerciseResult, sessionExerciseResult] = await Promise.all([
     supabase
       .from("calorie_targets")
       .select("*")
@@ -147,6 +150,25 @@ export async function loadFitnessData(userId: string): Promise<FitnessData> {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("calorie_targets")
+      .select("*")
+      .eq("user_id", userId)
+      .order("effective_from", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(50),
+    supabase
+      .from("daily_food_log_status")
+      .select("*")
+      .eq("user_id", userId)
+      .gte("date", toLocalDateKey(daysAgo(60)))
+      .order("date", { ascending: false }),
+    supabase
+      .from("calorie_reviews")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20),
     supabase
       .from("food_entries")
       .select("*")
@@ -194,7 +216,7 @@ export async function loadFitnessData(userId: string): Promise<FitnessData> {
       .limit(500),
   ])
 
-  const firstError = [targetResult, foodResult, favouriteResult, savedMealResult, weightResult, templateResult, sessionResult, exerciseResult, sessionExerciseResult].find(
+  const firstError = [targetResult, targetHistoryResult, foodStatusResult, reviewResult, foodResult, favouriteResult, savedMealResult, weightResult, templateResult, sessionResult, exerciseResult, sessionExerciseResult].find(
     (result) => result.error,
   )?.error
   if (firstError) throw new Error(firstError.message)
@@ -263,6 +285,9 @@ export async function loadFitnessData(userId: string): Promise<FitnessData> {
 
   return {
     calorieTarget: targetResult.data as CalorieTarget | null,
+    calorieTargetHistory: targetHistoryResult.data as CalorieTarget[],
+    dailyFoodLogStatuses: foodStatusResult.data as DailyFoodLogStatus[],
+    calorieReviews: reviewResult.data as CalorieReview[],
     foodEntries: foodResult.data as FoodEntry[],
     favouriteFoods: favouriteResult.data as FavouriteFood[],
     savedMeals,
@@ -274,6 +299,12 @@ export async function loadFitnessData(userId: string): Promise<FitnessData> {
 }
 
 export async function saveFoodEntry(userId: string, input: FoodEntryInput, id?: string) {
+  let previousDate: string | null = null
+  if (id) {
+    const { data, error } = await supabase.from("food_entries").select("eaten_at").eq("id", id).eq("user_id", userId).maybeSingle()
+    if (error) throw new Error(error.message)
+    previousDate = data ? toLocalDateKey(data.eaten_at as string) : null
+  }
   const payload = {
     user_id: userId,
     name: input.name.trim(),
@@ -290,6 +321,7 @@ export async function saveFoodEntry(userId: string, input: FoodEntryInput, id?: 
     ? await supabase.from("food_entries").update(payload).eq("id", id).eq("user_id", userId)
     : await supabase.from("food_entries").insert(payload)
   if (result.error) throw new Error(result.error.message)
+  await invalidateFoodLogCompletion(userId, [previousDate, toLocalDateKey(new Date(input.eatenAt))])
 }
 
 export async function analyzeFoodText(description: string) {
@@ -390,6 +422,7 @@ async function insertFoodEntries(userId: string, inputs: FoodEntryInput[]) {
   }))
   const { error } = await supabase.from("food_entries").insert(payload)
   if (error) throw new Error(error.message)
+  await invalidateFoodLogCompletion(userId, inputs.map((input) => toLocalDateKey(new Date(input.eatenAt))))
 }
 
 export async function repeatFoodEntry(userId: string, entry: FoodEntry, now = new Date()) {
@@ -463,7 +496,70 @@ export async function logSavedMeal(userId: string, meal: SavedMeal, mealType?: F
 }
 
 export async function deleteFoodEntry(userId: string, id: string) {
+  const { data, error: lookupError } = await supabase.from("food_entries").select("eaten_at").eq("id", id).eq("user_id", userId).maybeSingle()
+  if (lookupError) throw new Error(lookupError.message)
   const { error } = await supabase.from("food_entries").delete().eq("id", id).eq("user_id", userId)
+  if (error) throw new Error(error.message)
+  if (data) await invalidateFoodLogCompletion(userId, [toLocalDateKey(data.eaten_at as string)])
+}
+
+async function invalidateFoodLogCompletion(userId: string, dates: Array<string | null>) {
+  const uniqueDates = [...new Set(dates.filter((date): date is string => Boolean(date)))]
+  if (!uniqueDates.length) return
+  const { error } = await supabase
+    .from("daily_food_log_status")
+    .update({ is_complete: false, completed_at: null })
+    .eq("user_id", userId)
+    .in("date", uniqueDates)
+  if (error) throw new Error(`Food was saved, but its completion marker could not be reset: ${error.message}`)
+}
+
+export async function setDailyFoodLogComplete(userId: string, date: string, isComplete: boolean) {
+  if (date > toLocalDateKey()) throw new Error("Future food logs cannot be marked complete.")
+  const { error } = await supabase.from("daily_food_log_status").upsert({
+    user_id: userId,
+    date,
+    is_complete: isComplete,
+    completed_at: isComplete ? new Date().toISOString() : null,
+  }, { onConflict: "user_id,date" })
+  if (error) throw new Error(error.message)
+}
+
+export async function setAdaptiveCalorieEnabled(userId: string, enabled: boolean) {
+  const { error } = await supabase.from("profiles").update({ adaptive_calorie_enabled: enabled }).eq("user_id", userId)
+  if (error) throw new Error(error.message)
+}
+
+export async function createCalorieReview(userId: string, goal: Profile["goal"], result: AdaptiveReviewResult) {
+  if (result.status === "insufficient_data") throw new Error("There is not enough data for a calorie review yet.")
+  const { data, error } = await supabase.from("calorie_reviews").insert({
+    user_id: userId,
+    goal,
+    period_start: result.periodStart,
+    period_end: result.periodEnd,
+    previous_weight_avg: result.previousWeightAverage,
+    current_weight_avg: result.currentWeightAverage,
+    weight_change_kg: result.weightTrendKg,
+    weight_change_percent: result.weightTrendPercent,
+    complete_food_days: result.dataQuality.completeFoodDays,
+    weight_entry_count: result.dataQuality.weightEntries,
+    average_calories: result.averageCalories,
+    current_target: result.currentTarget,
+    suggested_target: result.suggestedTarget,
+    status: result.status,
+    reason_code: result.reasonCode,
+  }).select("*").single()
+  if (error) throw new Error(error.message)
+  return data as CalorieReview
+}
+
+export async function dismissCalorieReview(userId: string, reviewId: string) {
+  const { error } = await supabase.from("calorie_reviews").update({ dismissed_at: new Date().toISOString() }).eq("id", reviewId).eq("user_id", userId).is("accepted_at", null).is("dismissed_at", null)
+  if (error) throw new Error(error.message)
+}
+
+export async function acceptCalorieReview(reviewId: string) {
+  const { error } = await supabase.rpc("accept_calorie_review", { p_review_id: reviewId })
   if (error) throw new Error(error.message)
 }
 

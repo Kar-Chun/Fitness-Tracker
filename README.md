@@ -1,6 +1,6 @@
 # Steady Fitness Tracker
 
-A mobile-first personal tracker for calories, flexible workout logging, and weight trends. V1.2 adds review-first text and photo meal estimates backed by personal food history, USDA FoodData Central, Gemini, and an AI fallback. V1.3 adds custom routines and low-friction workout logging. The app uses React, TypeScript, Vite, Tailwind, shadcn/ui, and Supabase.
+A mobile-first personal tracker for calories, flexible workout logging, and weight trends. V1.2 adds review-first text and photo meal estimates backed by personal food history, USDA FoodData Central, Gemini, and an AI fallback. V1.3 adds custom routines and low-friction workout logging. V1.4 adds optional, user-confirmed calorie reviews based on complete food logs and two weekly weight averages. The app uses React, TypeScript, Vite, Tailwind, shadcn/ui, and Supabase.
 
 ## Local setup
 
@@ -90,8 +90,24 @@ npx supabase db push
 
 - Profiles, calorie targets, food, weight, exercises, routines, session exercises, sessions, and sets are protected by row-level security.
 - Logging weight again for the same date updates that date's entry.
-- Calorie targets are initial estimates and do not change automatically with weight logs.
+- The formula target remains the baseline. Adaptive reviews are opt-in and never change a target without explicit confirmation.
 - Existing Workout A/B data remains readable, but no sequence is imposed. Light workouts are configured per routine, count as completed workouts, and do not drive progression.
 - Recent, frequent, and search results are derived from the user's own food history using deterministic name normalisation.
 - Favourites and saved meals are reusable templates. Logging them always creates new diary entries, so later template edits never alter food history.
 - AI-created diary entries store only compact provenance, confidence, and calorie-range fields. Existing entries remain `manual` by default.
+
+## V1.4 adaptive calorie reviews
+
+Enable **Adaptive Calorie Reviews** under Profile & Settings. The feature waits for a 14-day period containing at least 8 useful weigh-ins, at least 3 weigh-ins in each seven-day window, and 10 food days marked complete with at least 4 complete days in each window. Incomplete food days are excluded rather than counted as zero. Adding, editing, deleting, copying, or repeating food resets the affected day's completion marker.
+
+The algorithm compares the mean weight in days 1–7 with days 8–14 and evaluates the percentage direction against the profile goal. A first off-target review is **Watch**. Only a consecutive eligible off-target review can suggest a change. Each suggestion is exactly 100 kcal/day, reviews have a seven-day cooldown, and accepted adaptive targets cannot move more than 200 kcal above or below the latest formula baseline. Rapid goal-direction changes may suggest a conservative 100 kcal correction; exercise calories are never added back.
+
+Review messages are deterministic product heuristics, not medical advice or an exact metabolism calculation. Choosing **Keep** records the review without changing the target. Choosing **Accept** transactionally marks the review accepted and inserts a new `calorie_targets` history row; prior targets remain unchanged.
+
+Apply the V1.4 migration before running this frontend:
+
+```sh
+npx supabase db push
+```
+
+The migration creates owner-protected `daily_food_log_status` and `calorie_reviews` tables, adds the opt-in profile setting, enforces review cooldown in PostgreSQL, and adds the atomic `accept_calorie_review` function.

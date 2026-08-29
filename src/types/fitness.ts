@@ -9,6 +9,7 @@ export type ExerciseLoadType = "per_dumbbell" | "total" | "bodyweight" | "none"
 export type SessionExerciseStatus = "planned" | "completed" | "skipped"
 export type EstimateConfidence = "high" | "medium" | "low"
 export type EstimateSource = "manual" | "history" | "favourite" | "saved_meal" | "usda" | "ai_estimate" | "mixed"
+export type CalorieReviewStatus = "on_track" | "watch" | "suggest_increase" | "suggest_decrease" | "review_goal"
 
 export interface Profile {
   user_id: string
@@ -22,6 +23,7 @@ export interface Profile {
   dumbbell_max_kg: number | null
   has_bench: boolean
   has_pull_up_bar: boolean
+  adaptive_calorie_enabled: boolean
   created_at: string
   updated_at: string
 }
@@ -33,6 +35,38 @@ export interface CalorieTarget {
   effective_from: string
   reason: string
   created_at: string
+}
+
+export interface DailyFoodLogStatus {
+  id: string
+  user_id: string
+  date: string
+  is_complete: boolean
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CalorieReview {
+  id: string
+  user_id: string
+  goal: Goal
+  period_start: string
+  period_end: string
+  previous_weight_avg: number
+  current_weight_avg: number
+  weight_change_kg: number
+  weight_change_percent: number
+  complete_food_days: number
+  weight_entry_count: number
+  average_calories: number
+  current_target: number
+  suggested_target: number | null
+  status: CalorieReviewStatus
+  reason_code: string
+  created_at: string
+  accepted_at: string | null
+  dismissed_at: string | null
 }
 
 export interface WeightEntry {
@@ -235,6 +269,9 @@ export interface WorkoutSessionWithDetails extends WorkoutSession {
 
 export interface FitnessData {
   calorieTarget: CalorieTarget | null
+  calorieTargetHistory: CalorieTarget[]
+  dailyFoodLogStatuses: DailyFoodLogStatus[]
+  calorieReviews: CalorieReview[]
   foodEntries: FoodEntry[]
   favouriteFoods: FavouriteFood[]
   savedMeals: SavedMeal[]

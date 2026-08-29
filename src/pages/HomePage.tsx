@@ -1,6 +1,8 @@
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Dumbbell, Plus, Scale } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { CalorieReviewCard } from "../components/calories/CalorieReviewCard.tsx"
 import { caloriesConsumed, caloriesRemaining, entriesForToday, getWeightTrend } from "../lib/calculations.ts"
+import type { AdaptiveReviewResult } from "../lib/calorie-adaptation.ts"
 import type { FitnessData } from "../types/fitness.ts"
 
 interface HomePageProps {
@@ -8,9 +10,11 @@ interface HomePageProps {
   onAddFood: () => void
   onLogWeight: () => void
   onOpenWorkout: () => void
+  adaptiveReview?: AdaptiveReviewResult
+  onOpenCalorieReview: () => void
 }
 
-export function HomePage({ data, onAddFood, onLogWeight, onOpenWorkout }: HomePageProps) {
+export function HomePage({ data, onAddFood, onLogWeight, onOpenWorkout, adaptiveReview, onOpenCalorieReview }: HomePageProps) {
   const todayEntries = entriesForToday(data.foodEntries)
   const consumed = caloriesConsumed(todayEntries)
   const target = data.calorieTarget?.calories ?? 0
@@ -41,6 +45,8 @@ export function HomePage({ data, onAddFood, onLogWeight, onOpenWorkout }: HomePa
           {remaining >= 0 ? `${remaining.toLocaleString()} kcal remaining` : `${Math.abs(remaining).toLocaleString()} kcal over your estimate`}
         </p>
       </section>
+
+      {adaptiveReview && <CalorieReviewCard result={adaptiveReview} compact onReview={onOpenCalorieReview} />}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-3xl border border-slate-800 bg-slate-900 p-5 sm:p-6">

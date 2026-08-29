@@ -1,10 +1,12 @@
 import { CalendarCheck, ChartNoAxesCombined, Dumbbell, Scale, TrendingUp } from "lucide-react"
 import { getWeightTrend, weeklyCalorieAverage } from "../lib/calculations.ts"
 import { getStrengthProgress } from "../lib/workout-progression.ts"
+import { CalorieReviewCard } from "../components/calories/CalorieReviewCard.tsx"
+import type { AdaptiveReviewResult } from "../lib/calorie-adaptation.ts"
 import { daysAgo, formatDateTime, formatShortDate, toLocalDateKey } from "../lib/date.ts"
 import type { FitnessData } from "../types/fitness.ts"
 
-export function ProgressPage({ data }: { data: FitnessData }) {
+export function ProgressPage({ data, adaptiveReview, onOpenCalorieReview }: { data: FitnessData; adaptiveReview?: AdaptiveReviewResult; onOpenCalorieReview: () => void }) {
   const trend = getWeightTrend(data.weightEntries)
   const calorieAverage = weeklyCalorieAverage(data.foodEntries)
   const weekStart = daysAgo(6)
@@ -54,6 +56,14 @@ export function ProgressPage({ data }: { data: FitnessData }) {
           <p className="mt-2 text-sm text-slate-500">Light sessions count equally. Showing up is the point.</p>
         </section>
       </div>
+
+      {adaptiveReview && <CalorieReviewCard result={adaptiveReview} onReview={onOpenCalorieReview} />}
+
+      <section className="rounded-3xl border border-slate-800 bg-slate-900 p-5 sm:p-6">
+        <h2 className="font-semibold">Calorie target history</h2>
+        <p className="mt-1 text-xs text-slate-500">Starting estimates and accepted adjustments are preserved.</p>
+        {data.calorieTargetHistory.length ? <div className="mt-4 overflow-hidden rounded-2xl border border-slate-800">{data.calorieTargetHistory.slice(0, 8).map((target, index) => <div key={target.id} className={`flex items-center justify-between gap-4 p-3 ${index ? "border-t border-slate-800" : ""}`}><div><p className="text-sm text-slate-300">{formatShortDate(target.effective_from)}</p><p className="mt-0.5 text-xs text-slate-600">{target.reason === "initial_estimate" ? "Starting estimate" : target.reason === "profile_recalculation" ? "Profile recalculation" : "Adaptive adjustment"}</p></div><p className="font-medium tabular-nums text-blue-300">{target.calories.toLocaleString()} kcal</p></div>)}</div> : <p className="mt-4 text-sm text-slate-500">No calorie targets yet.</p>}
+      </section>
 
       <section className="rounded-3xl border border-slate-800 bg-slate-900 p-5 sm:p-6">
         <div className="flex items-center gap-3"><Dumbbell className="text-blue-400" /><div><h2 className="font-semibold">Recent strength progress</h2><p className="mt-0.5 text-xs text-slate-500">Completed Normal exercise history</p></div></div>
