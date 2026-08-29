@@ -55,14 +55,22 @@
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.62 0.19 255);
   --radius: 0.75rem;
+  --steady-bg: #07101e;
+  --steady-surface-1: #0c1728;
+  --steady-surface-2: #111e31;
 }
 
 @layer base {
   * { @apply border-border outline-ring/50; }
   html { @apply bg-slate-950 font-sans; }
-  body { @apply m-0 min-w-80 bg-background text-foreground antialiased; }
+  body { @apply m-0 min-w-80 bg-background text-foreground antialiased; background-color: var(--steady-bg); }
   button, input, select { font: inherit; }
   button { touch-action: manipulation; }
+}
+
+@layer components {
+  .steady-interactive { @apply transition duration-200 hover:border-slate-700 hover:bg-slate-900; }
+  .steady-eyebrow { @apply text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-slate-500; }
 }
 
 @media (prefers-reduced-motion: reduce) {

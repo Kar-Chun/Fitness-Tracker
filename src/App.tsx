@@ -153,7 +153,7 @@ function MainApp({ user, profile, onProfileRefresh }: { user: User; profile: Pro
       {tab === "home" && <HomePage data={data} onAddFood={() => setModal({ type: "fast-food" })} onLogWeight={() => setModal({ type: "weight" })} onOpenWorkout={() => changeTab("workout")} adaptiveReview={adaptiveReview} onOpenCalorieReview={() => setModal({ type: "calorie-review" })} />}
       {tab === "food" && <FoodPage data={data} onAdd={() => setModal({ type: "fast-food" })} onQuickAdd={(seed) => setModal({ type: "fast-food", seed })} onEdit={(entry) => setModal({ type: "food", entry })} onDelete={handleDeleteFood} onToggleFavourite={handleToggleFavourite} onSaveAsMeal={(entries, mealType) => setModal({ type: "fast-food", initialTab: "meals", initialMeal: { name: "", defaultMealType: mealType, items: entries.map((entry) => ({ name: entry.name, calories: entry.calories, proteinG: entry.protein_g })) } })} onCopyMeal={handleCopyMeal} onLogSavedMeal={handleLogSavedMeal} onSetDayComplete={handleFoodLogCompletion} />}
       {tab === "workout" && <WorkoutPage userId={user.id} data={data} dumbbellMaxKg={profile.has_adjustable_dumbbells ? profile.dumbbell_max_kg : null} onRefresh={refresh} />}
-      {tab === "progress" && <ProgressPage data={data} adaptiveReview={adaptiveReview} onOpenCalorieReview={() => setModal({ type: "calorie-review" })} />}
+      {tab === "progress" && <ProgressPage data={data} adaptiveReview={adaptiveReview} onOpenCalorieReview={() => setModal({ type: "calorie-review" })} onLogWeight={() => setModal({ type: "weight" })} />}
 
       {modal?.type === "food" && (
         <Modal title="Edit food" description="Historical entries keep the values saved on that day." onClose={() => setModal(null)}>

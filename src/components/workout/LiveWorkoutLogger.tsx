@@ -3,6 +3,7 @@ import { Check, ChevronLeft, ChevronRight, LoaderCircle, Plus, Repeat2, SkipForw
 import { Button } from "@/components/ui/button"
 import { Input, Select } from "../shared/FormField.tsx"
 import { InlineError } from "../shared/Feedback.tsx"
+import { PageHeader, Surface } from "../shared/Visual.tsx"
 import { evaluateExerciseProgression } from "../../lib/workout-progression.ts"
 import { findPreviousExercisePerformance, loadTypeLabel } from "../../lib/workout-drafts.ts"
 import { addWorkoutSessionExercise, deleteExerciseSet, replaceSessionExercise, saveExerciseSet, setSessionExerciseStatus } from "../../services/fitness.ts"
@@ -160,33 +161,41 @@ export function LiveWorkoutLogger({ userId, session, data, dumbbellMaxKg, onRefr
     progression_step_kg: exercise.progression_step_kg,
     load_type: exercise.load_type,
   }, data.sessions.filter((item) => item.id !== session.id), { dumbbellMaxKg }) : null
+  const previous = exercise ? findPreviousExercisePerformance(data.sessions.filter((item) => item.id !== session.id), exercise.exercise_id, exercise.exercise_name_snapshot) : null
+  const previousWeight = previous?.sets.find((set) => set.weight_kg !== null)?.weight_kg ?? null
 
   return (
     <div className="grid gap-5">
-      <header className="flex items-start justify-between gap-4"><div><p className="text-sm font-medium uppercase tracking-wide text-blue-400">{session.mode} · live</p><h1 className="mt-1 text-3xl font-semibold">{session.title ?? session.template_name}</h1><p className="mt-1 text-sm text-slate-500">Record reality. Skip, replace, or add anything you need.</p></div><Button variant="ghost" size="icon" className="text-red-300" onClick={onDiscard} aria-label="Discard workout"><Trash2 /></Button></header>
+      <PageHeader eyebrow={`${session.mode} · live`} title={session.title ?? session.template_name} description="Record reality. Skip, replace, or add anything you need." action={<Button variant="ghost" size="icon" className="text-red-300" onClick={onDiscard} aria-label="Discard workout"><Trash2 /></Button>} />
+
+      <div className="flex gap-1.5" aria-label={`Exercise ${currentIndex + 1} of ${exercises.length}`}>{exercises.map((item, index) => <span key={item.id} className={`h-1 flex-1 rounded-full ${index < currentIndex ? "bg-blue-500/45" : index === currentIndex ? "bg-blue-400" : "bg-slate-800"}`} />)}</div>
 
       {exercise ? (
-        <section className="rounded-3xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
-          <div className="flex items-start justify-between gap-3"><div><p className="text-xs text-slate-500">Exercise {currentIndex + 1} of {exercises.length}</p><h2 className="mt-1 text-xl font-semibold">{exercise.exercise_name_snapshot}</h2><p className="mt-1 text-sm text-slate-500">{loadTypeLabel(exercise.load_type)} · target {exercise.target_rep_min}–{exercise.target_rep_max}</p></div>{exercise.status === "skipped" && <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-400">Skipped</span>}</div>
-          {progression && <p className="mt-3 rounded-xl bg-blue-500/5 p-3 text-xs leading-5 text-blue-200">{progression.reason}</p>}
+        <Surface className="p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-3"><div><p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-blue-400">Exercise {currentIndex + 1} of {exercises.length}</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">{exercise.exercise_name_snapshot}</h2><p className="mt-1 text-sm text-slate-500">{loadTypeLabel(exercise.load_type)}</p></div>{exercise.status === "skipped" && <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-400">Skipped</span>}</div>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <div className="rounded-xl bg-slate-950/55 p-3"><p className="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-600">Last</p><p className="mt-1 text-sm font-medium text-slate-300">{previous ? `${previousWeight !== null ? `${previousWeight}kg · ` : ""}${previous.sets.map((set) => set.reps).join(" / ")} reps` : "No previous session"}</p></div>
+            <div className="rounded-xl bg-slate-950/55 p-3"><p className="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-600">Target</p><p className="mt-1 text-sm font-medium text-slate-300">{exercise.target_sets} sets · {exercise.target_rep_min}–{exercise.target_rep_max} reps</p></div>
+          </div>
+          {progression && <p className="mt-3 rounded-xl border border-blue-400/10 bg-blue-500/5 p-3 text-xs leading-5 text-blue-200">{progression.reason}</p>}
           <div className="mt-5 grid gap-2">
             {(drafts[exercise.id] ?? startingSets(exercise, data.sessions)).map((set, index) => (
-              <div key={index} className={`grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto] items-end gap-2 rounded-2xl border p-3 ${set.completed ? "border-emerald-400/25 bg-emerald-400/5" : "border-slate-800 bg-slate-950/60"}`}>
-                <span className="pb-3 text-xs font-medium text-slate-500">{index + 1}</span>
-                <label className="min-w-0 text-xs text-slate-500"><span className="mb-1 block">{exercise.load_type === "per_dumbbell" ? "kg each" : "Weight"}</span><Input type="number" min="0" step="0.5" inputMode="decimal" disabled={exercise.load_type === "bodyweight" || exercise.load_type === "none"} value={set.weight} onChange={(event) => updateSet(index, { weight: event.target.value })} /></label>
-                <label className="min-w-0 text-xs text-slate-500"><span className="mb-1 block">Reps</span><Input type="number" min="0" inputMode="numeric" value={set.reps} onChange={(event) => updateSet(index, { reps: event.target.value })} /></label>
-                <Button size="icon-lg" className={`size-11 ${set.completed ? "bg-emerald-500 text-emerald-950" : "bg-blue-500"}`} disabled={busy} onClick={() => completeSet(index)} aria-label={`Complete set ${index + 1}`}>{set.completed ? <Check /> : busy ? <LoaderCircle className="animate-spin" /> : <Check />}</Button>
+              <div key={index} className={`grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto] items-end gap-2 rounded-xl border p-3 transition duration-200 ${set.completed ? "border-blue-400/25 bg-blue-500/7" : "border-slate-800 bg-slate-950/45"}`}>
+                <span className="pb-3 text-sm font-semibold text-slate-600">{index + 1}</span>
+                <label className="min-w-0 text-[0.68rem] uppercase tracking-wide text-slate-600"><span className="mb-1 block normal-case tracking-normal">{exercise.load_type === "per_dumbbell" ? "kg each" : "Weight"}</span><Input className="text-center text-lg font-semibold tabular-nums" type="number" min="0" step="0.5" inputMode="decimal" disabled={exercise.load_type === "bodyweight" || exercise.load_type === "none"} value={set.weight} onChange={(event) => updateSet(index, { weight: event.target.value })} /></label>
+                <label className="min-w-0 text-[0.68rem] text-slate-600"><span className="mb-1 block">Reps</span><Input className="text-center text-lg font-semibold tabular-nums" type="number" min="0" inputMode="numeric" value={set.reps} onChange={(event) => updateSet(index, { reps: event.target.value })} /></label>
+                <Button size="icon-lg" className={`size-11 ${set.completed ? "bg-blue-400 text-slate-950" : "bg-blue-500"}`} disabled={busy} onClick={() => completeSet(index)} aria-label={`Complete set ${index + 1}`}>{set.completed ? <Check /> : busy ? <LoaderCircle className="animate-spin" /> : <Check />}</Button>
                 <Button size="icon-sm" variant="ghost" className="mb-1 text-slate-600" disabled={busy} onClick={() => removeSet(index)} aria-label={`Remove set ${index + 1}`}><Trash2 /></Button>
               </div>
             ))}
           </div>
           <div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" onClick={repeatLastSet}><Repeat2 /> Repeat last set</Button><Button variant="ghost" onClick={() => setDrafts((current) => ({ ...current, [exercise.id]: [...(current[exercise.id] ?? []), { weight: "", reps: String(exercise.target_rep_min), completed: false }] }))}><Plus /> Add set</Button></div>
           <div className="mt-4 grid grid-cols-2 gap-2"><Button variant="outline" onClick={skipExercise} disabled={busy || (drafts[exercise.id] ?? []).some((set) => set.completed)}><SkipForward /> Skip</Button><Select value={exercise.exercise_id ?? ""} onChange={(event) => replaceExercise(event.target.value)} disabled={(drafts[exercise.id] ?? []).some((set) => set.completed)} aria-label="Replace exercise"><option value="" disabled>Replace exercise</option>{data.exercises.filter((item) => item.id !== exercise.exercise_id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></div>
-        </section>
+        </Surface>
       ) : <p className="rounded-3xl border border-dashed border-slate-800 p-8 text-center text-sm text-slate-500">This is an empty Quick Workout. Add your first exercise below.</p>}
 
       <InlineError message={error} />
-      <div className="grid grid-cols-[auto_1fr_auto] gap-2"><Button variant="outline" size="icon-lg" disabled={currentIndex === 0} onClick={() => setCurrentIndex((index) => index - 1)}><ChevronLeft /></Button><Button className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400" onClick={onFinish}>Finish workout</Button><Button variant="outline" size="icon-lg" disabled={currentIndex >= exercises.length - 1} onClick={() => setCurrentIndex((index) => index + 1)}><ChevronRight /></Button></div>
+      <div className="grid grid-cols-[auto_1fr_auto] gap-2"><Button variant="outline" size="icon-lg" disabled={currentIndex === 0} onClick={() => setCurrentIndex((index) => index - 1)} aria-label="Previous exercise"><ChevronLeft /></Button><Button className="h-10" onClick={onFinish}>Finish workout</Button><Button variant="outline" size="icon-lg" disabled={currentIndex >= exercises.length - 1} onClick={() => setCurrentIndex((index) => index + 1)} aria-label="Next exercise"><ChevronRight /></Button></div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"><Select value={selectedExerciseId} onChange={(event) => setSelectedExerciseId(event.target.value)} aria-label="Add exercise to workout">{data.exercises.map((item: ExerciseLibraryItem) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select><Button size="icon-lg" className="size-11" disabled={busy || !selectedExerciseId} onClick={addExercise}><Plus /></Button></div>
     </div>
   )

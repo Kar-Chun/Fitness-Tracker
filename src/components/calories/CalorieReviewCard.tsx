@@ -1,6 +1,7 @@
 import { CalendarRange, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { AdaptiveReviewResult } from "../../lib/calorie-adaptation.ts"
+import { Surface } from "../shared/Visual.tsx"
 
 interface CalorieReviewCardProps {
   result: AdaptiveReviewResult
@@ -12,10 +13,10 @@ export function CalorieReviewCard({ result, compact = false, onReview }: Calorie
   const cooldown = result.reasonCode === "review_cooldown"
   const ready = result.status !== "insufficient_data"
   return (
-    <section className={`rounded-3xl border border-slate-800 bg-slate-900 ${compact ? "p-5" : "p-5 sm:p-6"}`}>
+    <Surface className={`${compact ? "p-4 sm:p-5" : "p-5 sm:p-6"}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-medium text-blue-400"><CalendarRange className="size-4" /> Calorie Review</div>
+          <div className="flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.13em] text-blue-400"><CalendarRange className="size-4" /> Calorie Review</div>
           {ready ? (
             <><h2 className="mt-2 text-lg font-semibold">Your review is ready.</h2><p className="mt-1 text-sm text-slate-500">{result.dataQuality.label} · {result.dataQuality.completeFoodDays} complete food days</p></>
           ) : cooldown ? (
@@ -26,6 +27,6 @@ export function CalorieReviewCard({ result, compact = false, onReview }: Calorie
         </div>
         {ready && <Button variant="ghost" size="icon" onClick={onReview} aria-label="Open calorie review"><ChevronRight /></Button>}
       </div>
-    </section>
+    </Surface>
   )
 }
