@@ -46,7 +46,7 @@ export function WorkoutCompletionSummary({ session, previousSessions, template, 
       </div>
 
       {session.mode === "light" ? (
-        <p className="rounded-2xl border border-slate-800 p-4 text-sm leading-6 text-slate-400">Light session completed. It advances your A/B plan and counts fully for consistency, but it does not change load progression.</p>
+        <p className="rounded-2xl border border-slate-800 p-4 text-sm leading-6 text-slate-400">Light session completed. It counts fully for consistency, but it does not change load progression.</p>
       ) : items.length ? (
         <div>
           <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300"><TrendingUp className="size-4 text-blue-400" /> Meaningful progress</p>

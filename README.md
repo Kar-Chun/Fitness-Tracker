@@ -76,7 +76,7 @@ For a manual integration check, try a banana, eggs with toast, chicken rice, cai
 
 The Workout tab is user-choice-first. Existing Workout A/B rows remain ordinary editable routines, while users can create any number of routines from the focused home-equipment exercise library or their own custom exercises.
 
-Starting a routine creates session-exercise snapshots, so the live workout may safely differ from the saved plan. Sets are prefilled from the latest relevant completed Normal session but remain drafts until their check button is tapped. Exercises may be skipped, replaced for the current session, or added, and partial workouts can be completed. Quick Workout starts without a routine. Log Finished Workout and Copy Last create new reviewed sessions without mutating history.
+Starting a routine opens one scrollable logger with every exercise visible. Entering valid weight and rep values records a performed set; blank rows are ignored, and no separate set check button is required. Previous performance stays read-only until **Copy last sets** is selected. Exercises can be searched, created, and added inline without leaving the workout, and untouched exercises may be omitted when finishing a partial workout. Quick Workout uses the same logger, while Log Finished Workout records retrospective sessions without mutating history.
 
 Configure adjustable dumbbells, maximum weight per dumbbell, bench, and pull-up bar under Profile & Settings. Per-dumbbell and total loads are labelled explicitly. Progression remains deterministic and ignores Light, skipped, and incomplete work; a configured dumbbell ceiling prevents suggestions above available equipment.
 

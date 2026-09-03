@@ -57,5 +57,4 @@ export interface HistoryFood { name: string; calories: number; protein_g: number
 export interface FavouriteFood { name: string; normalized_name: string; calories: number; protein_g: number | null }
 export interface SavedMealItem { name: string; calories: number; protein_g: number | null }
 export interface SavedMeal { name: string; saved_meal_items: SavedMealItem[] }
-export interface PersonalFoodData { history: HistoryFood[]; favourites: FavouriteFood[]; savedMeals: SavedMeal[] }
 export interface PersonalMatch { name: string; calories: number; proteinG: number; source: PersonalSource; note: string }

@@ -5,7 +5,6 @@ import { DEFAULT_WORKOUT_TEMPLATES } from "../lib/workout-templates.ts"
 import {
   copyMealToNow,
   normalizeFoodName,
-  repeatFoodInput,
   savedMealToFoodInputs,
 } from "../lib/food-history.ts"
 import type {
@@ -417,10 +416,6 @@ async function insertFoodEntries(userId: string, inputs: FoodEntryInput[]) {
   if (error) throw new Error(error.message)
 }
 
-export async function repeatFoodEntry(userId: string, entry: FoodEntry, now = new Date()) {
-  await insertFoodEntries(userId, [repeatFoodInput(entry, now)])
-}
-
 export async function copyMealFromDate(userId: string, entries: FoodEntry[], now = new Date()) {
   await insertFoodEntries(userId, copyMealToNow(entries, now))
 }
@@ -564,11 +559,6 @@ export async function saveCustomExercise(userId: string, input: CustomExerciseIn
   return requireData(result.data, result.error, "Could not save exercise.") as ExerciseLibraryItem
 }
 
-export async function deleteCustomExercise(userId: string, id: string) {
-  const { error } = await supabase.from("exercises").delete().eq("id", id).eq("user_id", userId)
-  if (error) throw new Error(error.message)
-}
-
 function validateRoutine(input: RoutineInput) {
   if (!input.name.trim()) throw new Error("Routine name is required.")
   input.exercises.forEach((exercise) => {
@@ -707,17 +697,6 @@ export async function deleteWorkoutSessionExercise(userId: string, id: string) {
   if (error) throw new Error(error.message)
 }
 
-export async function replaceSessionExercise(userId: string, id: string, exercise: ExerciseLibraryItem) {
-  const { error } = await supabase.from("workout_session_exercises").update({
-    exercise_id: exercise.id,
-    exercise_name_snapshot: exercise.name,
-    load_type: exercise.load_type,
-    progression_step_kg: exercise.progression_step_kg,
-    status: "planned",
-  }).eq("id", id).eq("user_id", userId)
-  if (error) throw new Error(error.message)
-}
-
 export async function saveExerciseSet(
   userId: string,
   sessionId: string,
@@ -820,11 +799,4 @@ export async function discardWorkoutSession(userId: string, sessionId: string) {
     .eq("id", sessionId)
     .eq("user_id", userId)
   if (error) throw new Error(error.message)
-}
-
-export function addSessionDetails(
-  session: WorkoutSession,
-  templateName: string,
-): WorkoutSessionWithDetails {
-  return { ...session, template_name: templateName, sets: [], session_exercises: [] }
 }
