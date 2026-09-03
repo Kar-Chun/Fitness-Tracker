@@ -4,6 +4,7 @@ import type {
   WorkoutTemplate,
   WorkoutTemplateExercise,
 } from "../types/fitness.ts"
+import { completedNormalSessions, sameExerciseIdentity } from "./workout-history.ts"
 
 export type WorkoutProgressionAction = "increase" | "keep" | "consider_reduce" | "bodyweight" | "equipment_limit"
 
@@ -66,9 +67,7 @@ function toPerformance(
   if (!session.completed_at || session.mode !== "normal") return null
   const actualExercise = session.session_exercises?.find((candidate) =>
     candidate.status === "completed"
-    && (exercise.exercise_id && candidate.exercise_id
-      ? exercise.exercise_id === candidate.exercise_id
-      : exercise.exercise_name === candidate.exercise_name_snapshot))
+    && sameExerciseIdentity(exercise.exercise_id, exercise.exercise_name, candidate.exercise_id, candidate.exercise_name_snapshot))
   if ((session.session_exercises?.length ?? 0) > 0 && !actualExercise) return null
   const sourceSets = actualExercise?.sets
     ?? session.sets.filter((set) => set.exercise_name === exercise.exercise_name)
@@ -86,10 +85,9 @@ export function getNormalExercisePerformances(
   sessions: WorkoutSessionWithDetails[],
   exercise: Pick<WorkoutTemplateExercise, "exercise_id" | "exercise_name" | "target_sets">,
 ) {
-  return sessions
+  return completedNormalSessions(sessions)
     .map((session) => toPerformance(session, exercise))
     .filter((performance): performance is ExercisePerformance => performance !== null)
-    .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
 }
 
 export function getPreviousNormalPerformance(

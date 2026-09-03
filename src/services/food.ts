@@ -95,8 +95,8 @@ export async function loadFoodData(userId: string): Promise<FoodData> {
   return { foodEntries, favouriteFoods, savedMeals, dailyFoodLogStatuses }
 }
 
-export async function saveFoodEntry(userId: string, input: FoodEntryInput, id?: string) {
-  const payload = {
+function toFoodEntryRow(userId: string, input: FoodEntryInput) {
+  return {
     user_id: userId,
     name: input.name.trim(),
     calories: input.calories,
@@ -108,6 +108,10 @@ export async function saveFoodEntry(userId: string, input: FoodEntryInput, id?: 
     estimate_low_calories: input.estimateLowCalories ?? null,
     estimate_high_calories: input.estimateHighCalories ?? null,
   }
+}
+
+export async function saveFoodEntry(userId: string, input: FoodEntryInput, id?: string) {
+  const payload = toFoodEntryRow(userId, input)
   const result = id
     ? await supabase.from("food_entries").update(payload).eq("id", id).eq("user_id", userId)
     : await supabase.from("food_entries").insert(payload)
@@ -195,18 +199,7 @@ function isFoodImageAnalysisResult(value: unknown): value is FoodImageAnalysisRe
 
 async function insertFoodEntries(userId: string, inputs: FoodEntryInput[]) {
   if (!inputs.length) throw new Error("There are no food items to log.")
-  const payload = inputs.map((input) => ({
-    user_id: userId,
-    name: input.name.trim(),
-    calories: input.calories,
-    protein_g: input.proteinG,
-    meal_type: input.mealType,
-    eaten_at: new Date(input.eatenAt).toISOString(),
-    source: input.source ?? "manual",
-    confidence: input.confidence ?? null,
-    estimate_low_calories: input.estimateLowCalories ?? null,
-    estimate_high_calories: input.estimateHighCalories ?? null,
-  }))
+  const payload = inputs.map((input) => toFoodEntryRow(userId, input))
   const { error } = await supabase.from("food_entries").insert(payload)
   if (error) throw new Error(error.message)
 }

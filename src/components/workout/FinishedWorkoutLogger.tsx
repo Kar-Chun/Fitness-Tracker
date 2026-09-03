@@ -103,8 +103,7 @@ export function FinishedWorkoutLogger({ data, routine, recentSession, onCreateCu
         targetRepMin: exercise.targetRepMin,
         targetRepMax: exercise.targetRepMax,
         progressionStepKg: exercise.progressionStepKg,
-        skipped: false,
-        sets: sets.map((set) => ({ weightKg: set.weightKg, reps: set.reps, completed: true })),
+        sets: sets.map((set) => ({ weightKg: set.weightKg, reps: set.reps })),
       }]
     })
     if (!performed.length) return setError("Enter at least one performed set before saving.")

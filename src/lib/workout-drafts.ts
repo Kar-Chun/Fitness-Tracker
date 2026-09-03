@@ -5,29 +5,18 @@ import type {
   WorkoutSessionWithDetails,
   WorkoutTemplate,
 } from "../types/fitness.ts"
-
-function sameExercise(
-  exerciseId: string | null,
-  exerciseName: string,
-  candidateId: string | null,
-  candidateName: string,
-) {
-  if (exerciseId && candidateId) return exerciseId === candidateId
-  return exerciseName === candidateName
-}
+import { completedNormalSessions, sameExerciseIdentity } from "./workout-history.ts"
 
 export function findPreviousExercisePerformance(
   sessions: WorkoutSessionWithDetails[],
   exerciseId: string | null,
   exerciseName: string,
 ) {
-  return sessions
-    .filter((session) => session.completed_at && session.mode === "normal")
-    .sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""))
+  return completedNormalSessions(sessions)
     .flatMap((session) => session.session_exercises)
     .find((exercise) =>
       exercise.status === "completed"
-      && sameExercise(exerciseId, exerciseName, exercise.exercise_id, exercise.exercise_name_snapshot)
+      && sameExerciseIdentity(exerciseId, exerciseName, exercise.exercise_id, exercise.exercise_name_snapshot)
       && exercise.sets.length > 0) ?? null
 }
 
@@ -51,11 +40,9 @@ export function createRoutineWorkoutDraft(
         targetRepMin: exercise.target_rep_min,
         targetRepMax: exercise.target_rep_max,
         progressionStepKg: exercise.progression_step_kg,
-        skipped: false,
         sets: Array.from({ length: targetSets }, () => ({
           weightKg: null,
           reps: 0,
-          completed: false,
         })),
       }
     })
@@ -73,8 +60,7 @@ export function copySessionToDraft(session: WorkoutSessionWithDetails): WorkoutD
       targetRepMin: exercise.target_rep_min,
       targetRepMax: exercise.target_rep_max,
       progressionStepKg: exercise.progression_step_kg,
-      skipped: false,
-      sets: exercise.sets.map((set) => ({ weightKg: set.weight_kg, reps: set.reps, completed: true })),
+      sets: exercise.sets.map((set) => ({ weightKg: set.weight_kg, reps: set.reps })),
     }))
 }
 

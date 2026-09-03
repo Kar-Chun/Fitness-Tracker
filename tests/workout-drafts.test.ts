@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { copySessionToDraft, createRoutineWorkoutDraft, loadTypeLabel, replaceDraftExercise, routineToInput } from "../src/lib/workout-drafts.ts"
+import { sameExerciseIdentity } from "../src/lib/workout-history.ts"
 import type { WorkoutSessionWithDetails, WorkoutTemplate } from "../src/types/fitness.ts"
 
 const routine: WorkoutTemplate = {
@@ -54,7 +55,8 @@ test("routine order is preserved and Light includes only selected exercises", ()
 test("a new routine draft does not silently copy previous performance", () => {
   const draft = createRoutineWorkoutDraft(routine, [previous], "normal")
   assert.deepEqual(draft[0]?.sets.map((set) => [set.weightKg, set.reps]), [[null, 0], [null, 0], [null, 0]])
-  assert.equal(draft[0]?.sets.every((set) => !set.completed), true)
+  assert.equal("completed" in (draft[0]?.sets[0] ?? {}), false)
+  assert.equal("skipped" in (draft[0] ?? {}), false)
   assert.equal(previous.session_exercises[0]?.sets.length, 3)
 })
 
@@ -77,4 +79,11 @@ test("session-only replacement does not mutate the source routine", () => {
 test("per-dumbbell load semantics remain explicit", () => {
   assert.equal(loadTypeLabel("per_dumbbell"), "kg each")
   assert.equal(loadTypeLabel("total"), "kg total")
+})
+
+test("exercise identity prefers stable ids and uses an exact-name fallback for legacy rows", () => {
+  assert.equal(sameExerciseIdentity("bench", "Old name", "bench", "New name"), true)
+  assert.equal(sameExerciseIdentity("bench", "Bench Press", "row", "Bench Press"), false)
+  assert.equal(sameExerciseIdentity("bench", "Bench Press", null, "Bench Press"), true)
+  assert.equal(sameExerciseIdentity(null, "Bench Press", null, "bench press"), false)
 })

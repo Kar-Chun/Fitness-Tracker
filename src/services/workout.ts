@@ -185,7 +185,6 @@ async function insertSessionExercises(userId: string, sessionId: string, exercis
   targetRepMin: number
   targetRepMax: number
   progressionStepKg: number | null
-  skipped?: boolean
 }>) {
   if (!exercises.length) return [] as WorkoutSessionExercise[]
   const rows = exercises.map((exercise, position) => ({
@@ -199,7 +198,7 @@ async function insertSessionExercises(userId: string, sessionId: string, exercis
     target_rep_min: exercise.targetRepMin,
     target_rep_max: exercise.targetRepMax,
     progression_step_kg: exercise.progressionStepKg,
-    status: exercise.skipped ? "skipped" : "planned",
+    status: "planned",
   }))
   const { data, error } = await supabase.from("workout_session_exercises").insert(rows).select("*")
   if (error) throw new Error(error.message)
@@ -317,6 +316,7 @@ export async function deleteExerciseSetsForSessionExercise(userId: string, sessi
 
 export async function saveFinishedWorkout(userId: string, input: FinishedWorkoutInput) {
   if (!input.title.trim()) throw new Error("Workout name is required.")
+  const performedExercises = input.exercises.filter((exercise) => exercise.sets.length > 0)
   const { data, error } = await supabase.from("workout_sessions").insert({
     user_id: userId,
     template_id: input.templateId,
@@ -329,7 +329,7 @@ export async function saveFinishedWorkout(userId: string, input: FinishedWorkout
   }).select("*").single()
   const session = requireData(data, error, "Could not create workout.") as WorkoutSession
   try {
-    const sessionExercises = await insertSessionExercises(userId, session.id, input.exercises.map((exercise) => ({
+    const sessionExercises = await insertSessionExercises(userId, session.id, performedExercises.map((exercise) => ({
       exerciseId: exercise.exerciseId,
       exerciseName: exercise.exerciseName,
       loadType: exercise.loadType,
@@ -337,10 +337,8 @@ export async function saveFinishedWorkout(userId: string, input: FinishedWorkout
       targetRepMin: exercise.targetRepMin,
       targetRepMax: exercise.targetRepMax,
       progressionStepKg: exercise.progressionStepKg,
-      skipped: exercise.skipped,
     })))
-    const sets = input.exercises.flatMap((exercise, exerciseIndex) => exercise.sets
-      .filter((set) => set.completed && !exercise.skipped)
+    const sets = performedExercises.flatMap((exercise, exerciseIndex) => exercise.sets
       .map((set, setIndex) => ({
         user_id: userId,
         session_id: session.id,
@@ -354,7 +352,7 @@ export async function saveFinishedWorkout(userId: string, input: FinishedWorkout
       const { error: setError } = await supabase.from("exercise_sets").insert(sets)
       if (setError) throw new Error(setError.message)
     }
-    const completedIds = sessionExercises.filter((_, index) => !input.exercises[index]?.skipped).map((exercise) => exercise.id)
+    const completedIds = sessionExercises.map((exercise) => exercise.id)
     if (completedIds.length) {
       const { error: statusError } = await supabase.from("workout_session_exercises").update({ status: "completed" }).in("id", completedIds).eq("user_id", userId)
       if (statusError) throw new Error(statusError.message)

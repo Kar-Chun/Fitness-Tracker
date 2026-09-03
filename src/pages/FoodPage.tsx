@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Copy, LoaderCircle, MoreHorizontal, Pencil, Plus, RotateCcw, Save, Star, Trash2, Utensils } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { caloriesConsumed, caloriesRemaining } from "../lib/calculations.ts"
-import { formatDateTime, toLocalDateKey, toLocalDateTimeInput } from "../lib/date.ts"
+import { addLocalDateKeyDays, formatDateTime, parseLocalDateKey, toLocalDateKey, toLocalDateTimeInput } from "../lib/date.ts"
 import { getRecentFoods, historyOptionToFoodInput, normalizeFoodName, repeatFoodInput, savedMealTotal } from "../lib/food-history.ts"
 import type { FavouriteFood, FitnessData, FoodEntry, FoodEntryInput, MealType, SavedMeal } from "../types/fitness.ts"
 import { EmptyState, PageHeader, ProgressBar, SectionHeader, Surface } from "../components/shared/Visual.tsx"
@@ -22,14 +22,8 @@ interface FoodPageProps {
 
 const mealLabels: Record<MealType, string> = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snack: "Snacks" }
 
-function moveDate(dateKey: string, amount: number) {
-  const date = new Date(`${dateKey}T12:00:00`)
-  date.setDate(date.getDate() + amount)
-  return toLocalDateKey(date)
-}
-
 function diaryDateLabel(dateKey: string, today: string) {
-  const date = new Date(`${dateKey}T12:00:00`)
+  const date = parseLocalDateKey(dateKey)
   if (dateKey === today) return `Today · ${new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(date)}`
   return new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short" }).format(date)
 }
@@ -93,7 +87,7 @@ export function FoodPage({ data, onAdd, onQuickAdd, onEdit, onDelete, onToggleFa
       <PageHeader eyebrow="Daily diary" title="Food" description="Log quickly, then get on with your day." action={<Button size="lg" className="h-11 px-5" onClick={onAdd}><Plus /> Add food</Button>} />
 
       <div className="grid max-w-md grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2">
-        <Button variant="outline" size="icon" className="size-11" onClick={() => setSelectedDate(moveDate(selectedDate, -1))} aria-label="Previous day"><ChevronLeft /></Button>
+        <Button variant="outline" size="icon" className="size-11" onClick={() => setSelectedDate(addLocalDateKeyDays(selectedDate, -1))} aria-label="Previous day"><ChevronLeft /></Button>
         <div className="flex h-11 min-w-0 items-center justify-between rounded-xl border border-slate-700/80 bg-slate-900/70 pl-4 pr-1">
           <span className="truncate text-sm font-medium text-slate-200">{diaryDateLabel(selectedDate, today)}</span>
           <label className="relative grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg text-slate-500 transition hover:bg-slate-800 hover:text-blue-300 focus-within:ring-2 focus-within:ring-blue-500/40" title="Choose date">
@@ -101,7 +95,7 @@ export function FoodPage({ data, onAdd, onQuickAdd, onEdit, onDelete, onToggleFa
             <input className="absolute inset-0 cursor-pointer opacity-0" type="date" max={today} value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} aria-label="Choose diary date" />
           </label>
         </div>
-        <Button variant="outline" size="icon" className="size-11" disabled={selectedDate >= today} onClick={() => setSelectedDate(moveDate(selectedDate, 1))} aria-label="Next day"><ChevronRight /></Button>
+        <Button variant="outline" size="icon" className="size-11" disabled={selectedDate >= today} onClick={() => setSelectedDate(addLocalDateKeyDays(selectedDate, 1))} aria-label="Next day"><ChevronRight /></Button>
       </div>
 
       <Surface className="p-4 sm:p-5">

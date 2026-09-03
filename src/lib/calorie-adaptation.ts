@@ -1,4 +1,5 @@
 import type { CalorieReview, CalorieReviewStatus, CalorieTarget, DailyFoodLogStatus, FoodEntry, Goal, WeightEntry } from "../types/fitness.ts"
+import { addLocalDateKeyDays, isLocalDateKeyWithin, toLocalDateKey } from "./date.ts"
 
 // Product heuristics for general wellness feedback. These are not medical thresholds.
 export const ADAPTIVE_CALORIE_CONFIG = {
@@ -73,26 +74,8 @@ interface ReviewInput {
   now?: Date
 }
 
-function parseDateKey(value: string) {
-  return new Date(`${value}T12:00:00`)
-}
-
-function addDays(value: string, amount: number) {
-  const date = parseDateKey(value)
-  date.setDate(date.getDate() + amount)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
-}
-
-function localDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
-}
-
-function isWithin(date: string, start: string, end: string) {
-  return date >= start && date <= end
-}
-
 export function getSevenDayWeightAverage(entries: WeightEntry[], start: string, end: string) {
-  const values = entries.filter((entry) => isWithin(entry.recorded_on, start, end) && entry.weight_kg > 0).map((entry) => entry.weight_kg)
+  const values = entries.filter((entry) => isLocalDateKeyWithin(entry.recorded_on, start, end) && entry.weight_kg > 0).map((entry) => entry.weight_kg)
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
 }
 
@@ -102,10 +85,10 @@ export function calculateWeightTrend(previousAverage: number, currentAverage: nu
 }
 
 export function getAverageCompleteDayCalories(entries: FoodEntry[], statuses: DailyFoodLogStatus[], start: string, end: string) {
-  const dates = new Set(statuses.filter((status) => status.is_complete && isWithin(status.date, start, end)).map((status) => status.date))
+  const dates = new Set(statuses.filter((status) => status.is_complete && isLocalDateKeyWithin(status.date, start, end)).map((status) => status.date))
   if (!dates.size) return null
   const total = entries.reduce((sum, entry) => {
-    const date = localDateKey(new Date(entry.eaten_at))
+    const date = toLocalDateKey(new Date(entry.eaten_at))
     return dates.has(date) ? sum + entry.calories : sum
   }, 0)
   return Math.round(total / dates.size)
@@ -162,14 +145,14 @@ export function getAdaptiveRecommendation(goal: Goal, trendPercent: number, prev
 
 export function evaluateCalorieReview(input: ReviewInput): AdaptiveReviewResult {
   const now = input.now ?? new Date()
-  const periodEnd = input.endDate ?? localDateKey(now)
-  const periodStart = addDays(periodEnd, -(ADAPTIVE_CALORIE_CONFIG.reviewDays - 1))
-  const previousEnd = addDays(periodStart, ADAPTIVE_CALORIE_CONFIG.windowDays - 1)
-  const currentStart = addDays(previousEnd, 1)
-  const relevantWeights = input.weights.filter((entry) => isWithin(entry.recorded_on, periodStart, periodEnd) && entry.weight_kg > 0)
+  const periodEnd = input.endDate ?? toLocalDateKey(now)
+  const periodStart = addLocalDateKeyDays(periodEnd, -(ADAPTIVE_CALORIE_CONFIG.reviewDays - 1))
+  const previousEnd = addLocalDateKeyDays(periodStart, ADAPTIVE_CALORIE_CONFIG.windowDays - 1)
+  const currentStart = addLocalDateKeyDays(previousEnd, 1)
+  const relevantWeights = input.weights.filter((entry) => isLocalDateKeyWithin(entry.recorded_on, periodStart, periodEnd) && entry.weight_kg > 0)
   const previousWeights = relevantWeights.filter((entry) => entry.recorded_on <= previousEnd)
   const currentWeights = relevantWeights.filter((entry) => entry.recorded_on >= currentStart)
-  const completeStatuses = input.foodStatuses.filter((status) => status.is_complete && isWithin(status.date, periodStart, periodEnd))
+  const completeStatuses = input.foodStatuses.filter((status) => status.is_complete && isLocalDateKeyWithin(status.date, periodStart, periodEnd))
   const previousComplete = completeStatuses.filter((status) => status.date <= previousEnd)
   const currentComplete = completeStatuses.filter((status) => status.date >= currentStart)
   const quality: AdaptiveReviewResult["dataQuality"]["label"] = relevantWeights.length >= 12 && completeStatuses.length >= 12 ? "Strong data" : relevantWeights.length >= ADAPTIVE_CALORIE_CONFIG.minWeightEntries && completeStatuses.length >= ADAPTIVE_CALORIE_CONFIG.minCompleteFoodDays ? "Enough data" : "Building"
@@ -179,6 +162,9 @@ export function evaluateCalorieReview(input: ReviewInput): AdaptiveReviewResult 
   const cooldownDaysRemaining = Math.max(0, Math.ceil((cooldownMs - elapsed) / 86_400_000))
   const previousAverage = getSevenDayWeightAverage(previousWeights, periodStart, previousEnd)
   const currentAverage = getSevenDayWeightAverage(currentWeights, currentStart, periodEnd)
+  const weightTrend = previousAverage !== null && currentAverage !== null
+    ? calculateWeightTrend(previousAverage, currentAverage)
+    : null
   const averageCalories = getAverageCompleteDayCalories(input.foodEntries, completeStatuses, periodStart, periodEnd)
   const base = {
     currentTarget: input.currentTarget,
@@ -188,8 +174,8 @@ export function evaluateCalorieReview(input: ReviewInput): AdaptiveReviewResult 
     periodEnd,
     previousWeightAverage: previousAverage,
     currentWeightAverage: currentAverage,
-    weightTrendKg: previousAverage !== null && currentAverage !== null ? currentAverage - previousAverage : null,
-    weightTrendPercent: previousAverage !== null && currentAverage !== null ? ((currentAverage - previousAverage) / previousAverage) * 100 : null,
+    weightTrendKg: weightTrend?.changeKg ?? null,
+    weightTrendPercent: weightTrend?.changePercent ?? null,
     averageCalories,
     dataQuality: {
       label: quality,

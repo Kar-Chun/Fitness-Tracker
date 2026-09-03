@@ -355,7 +355,6 @@ export interface EquipmentSettingsInput {
 export interface WorkoutDraftSetInput {
   weightKg: number | null
   reps: number
-  completed: boolean
 }
 
 export interface WorkoutDraftExerciseInput {
@@ -366,7 +365,6 @@ export interface WorkoutDraftExerciseInput {
   targetRepMin: number
   targetRepMax: number
   progressionStepKg: number | null
-  skipped: boolean
   sets: WorkoutDraftSetInput[]
 }
 

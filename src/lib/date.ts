@@ -6,6 +6,20 @@ export function toLocalDateKey(date: Date | string = new Date()) {
   return `${year}-${month}-${day}`
 }
 
+export function parseLocalDateKey(value: string) {
+  return new Date(`${value}T12:00:00`)
+}
+
+export function addLocalDateKeyDays(value: string, amount: number) {
+  const date = parseLocalDateKey(value)
+  date.setDate(date.getDate() + amount)
+  return toLocalDateKey(date)
+}
+
+export function isLocalDateKeyWithin(value: string, start: string, end: string) {
+  return value >= start && value <= end
+}
+
 export function toLocalDateTimeInput(date: Date | string = new Date()) {
   const value = typeof date === "string" ? new Date(date) : date
   const hours = String(value.getHours()).padStart(2, "0")
@@ -25,7 +39,7 @@ export function daysAgo(days: number, from: Date = new Date()) {
 
 export function formatShortDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
-    new Date(`${value}T12:00:00`),
+    parseLocalDateKey(value),
   )
 }
 
