@@ -9,7 +9,7 @@ import { evaluateExerciseProgression } from "../../lib/workout-progression.ts"
 import { KeyedMutationQueue } from "../../lib/keyed-mutation-queue.ts"
 import { findPreviousExercisePerformance, loadTypeLabel } from "../../lib/workout-drafts.ts"
 import { copyLastSets, createBlankSetDrafts, getFirstSetError, getSetDraftState, getValidSetValues, type EditableSetDraft } from "../../lib/workout-logger.ts"
-import { addWorkoutSessionExercise, deleteExerciseSet, deleteExerciseSetsForSessionExercise, deleteWorkoutSessionExercise, saveExerciseSet, setSessionExerciseStatus } from "../../services/fitness.ts"
+import { addWorkoutSessionExercise, deleteExerciseSet, deleteExerciseSetsForSessionExercise, deleteWorkoutSessionExercise, saveExerciseSet, setSessionExerciseStatus } from "../../services/workout.ts"
 import type { CustomExerciseInput, ExerciseLibraryItem, ExerciseSet, FitnessData, WorkoutSessionExercise, WorkoutSessionWithDetails } from "../../types/fitness.ts"
 
 function startingSets(exercise: WorkoutSessionExercise) {

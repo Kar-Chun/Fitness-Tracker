@@ -13,7 +13,10 @@ import { useAuth } from "./hooks/use-auth.ts"
 import { useFitnessData } from "./hooks/use-fitness-data.ts"
 import { getWeightTrend } from "./lib/calculations.ts"
 import { evaluateCalorieReview } from "./lib/calorie-adaptation.ts"
-import { acceptCalorieReview, analyzeFoodImage, analyzeFoodText, copyMealFromDate, createCalorieReview, deleteFavouriteFood, deleteFoodEntry, deleteSavedMeal, dismissCalorieReview, getProfile, logSavedMeal, saveEquipmentSettings, saveFavouriteFood, saveFoodEntry, saveFoodEstimate, saveSavedMeal, setAdaptiveCalorieEnabled, setDailyFoodLogComplete, upsertWeight } from "./services/fitness.ts"
+import { acceptCalorieReview, createCalorieReview, dismissCalorieReview, setAdaptiveCalorieEnabled } from "./services/calories.ts"
+import { analyzeFoodImage, analyzeFoodText, copyMealFromDate, deleteFavouriteFood, deleteFoodEntry, deleteSavedMeal, logSavedMeal, saveFavouriteFood, saveFoodEntry, saveFoodEstimate, saveSavedMeal, setDailyFoodLogComplete } from "./services/food.ts"
+import { getProfile, saveEquipmentSettings } from "./services/profile.ts"
+import { upsertWeight } from "./services/weight.ts"
 import { AuthPage } from "./pages/AuthPage.tsx"
 import { FoodPage } from "./pages/FoodPage.tsx"
 import { HomePage } from "./pages/HomePage.tsx"
@@ -40,7 +43,21 @@ function getInitialTab(): AppTab {
 }
 
 function MainApp({ user, profile, onProfileRefresh }: { user: User; profile: Profile; onProfileRefresh: () => Promise<void> }) {
-  const { data, loading, error, refresh } = useFitnessData(user.id)
+  const {
+    data,
+    loading,
+    error,
+    refreshError,
+    refresh,
+    refreshFoodDiary,
+    refreshFavourites,
+    refreshSavedMeals,
+    refreshFoodStatus,
+    refreshWeight,
+    refreshWorkout,
+    refreshExercises,
+    refreshCalories,
+  } = useFitnessData(user.id)
   const [tab, setTab] = useState<AppTab>(getInitialTab)
   const [modal, setModal] = useState<ModalState>(null)
   const [actionError, setActionError] = useState("")
@@ -54,53 +71,53 @@ function MainApp({ user, profile, onProfileRefresh }: { user: User; profile: Pro
   async function handleFoodSave(input: Parameters<typeof saveFoodEntry>[1]) {
     await saveFoodEntry(user.id, input, modal?.type === "food" ? modal.entry.id : undefined)
     setLastMealType(input.mealType)
-    await refresh()
+    await refreshFoodDiary()
     setModal(null)
   }
 
   async function handleFoodEstimateSave(input: FoodEstimateLogInput) {
     await saveFoodEstimate(user.id, input)
     setLastMealType(input.mealType)
-    await refresh()
+    await refreshFoodDiary()
     setModal(null)
   }
 
   async function handleSaveFavourite(input: Parameters<typeof saveFavouriteFood>[1], id?: string) {
     await saveFavouriteFood(user.id, input, id)
-    await refresh()
+    await refreshFavourites()
   }
 
   async function handleDeleteFavourite(id: string) {
     await deleteFavouriteFood(user.id, id)
-    await refresh()
+    await refreshFavourites()
   }
 
   async function handleToggleFavourite(entry: FoodEntry, favourite?: FavouriteFood) {
     if (favourite) await deleteFavouriteFood(user.id, favourite.id)
     else await saveFavouriteFood(user.id, { name: entry.name, calories: entry.calories, proteinG: entry.protein_g, defaultMealType: entry.meal_type })
-    await refresh()
+    await refreshFavourites()
   }
 
   async function handleSaveMeal(input: SavedMealInput, id?: string) {
     await saveSavedMeal(input, id)
-    await refresh()
+    await refreshSavedMeals()
   }
 
   async function handleDeleteSavedMeal(id: string) {
     await deleteSavedMeal(user.id, id)
-    await refresh()
+    await refreshSavedMeals()
   }
 
   async function handleLogSavedMeal(meal: SavedMeal, mealType?: MealType) {
     await logSavedMeal(user.id, meal, mealType)
     setLastMealType(mealType ?? meal.default_meal_type ?? "snack")
-    await refresh()
+    await refreshFoodDiary()
     setModal(null)
   }
 
   async function handleCopyMeal(entries: FoodEntry[]) {
     await copyMealFromDate(user.id, entries)
-    await refresh()
+    await refreshFoodDiary()
   }
 
   async function handleDeleteFood(entry: FoodEntry) {
@@ -108,7 +125,7 @@ function MainApp({ user, profile, onProfileRefresh }: { user: User; profile: Pro
     setActionError("")
     try {
       await deleteFoodEntry(user.id, entry.id)
-      await refresh()
+      await refreshFoodDiary()
     } catch (deleteError) {
       setActionError(deleteError instanceof Error ? deleteError.message : "Could not delete this entry.")
     }
@@ -116,13 +133,13 @@ function MainApp({ user, profile, onProfileRefresh }: { user: User; profile: Pro
 
   async function handleWeightSave(weightKg: number, recordedOn: string) {
     await upsertWeight(user.id, weightKg, recordedOn)
-    await refresh()
+    await refreshWeight()
     setModal(null)
   }
 
   async function handleFoodLogCompletion(date: string, isComplete: boolean) {
     await setDailyFoodLogComplete(user.id, date, isComplete)
-    await refresh()
+    await refreshFoodStatus()
   }
 
   if (loading) return <AppShell activeTab={tab} onTabChange={changeTab} onOpenAccount={() => setModal({ type: "account" })} email={user.email}><PageLoader /></AppShell>
@@ -144,15 +161,15 @@ function MainApp({ user, profile, onProfileRefresh }: { user: User; profile: Pro
     const review = await createCalorieReview(user.id, profile.goal, adaptiveReview)
     if (accept && adaptiveReview.suggestedTarget !== null) await acceptCalorieReview(review.id)
     else await dismissCalorieReview(user.id, review.id)
-    await refresh()
+    await refreshCalories()
     setModal(null)
   }
   return (
     <AppShell activeTab={tab} onTabChange={changeTab} onOpenAccount={() => setModal({ type: "account" })} email={user.email}>
-      {actionError && <div className="mb-5"><ErrorState message={actionError} /></div>}
+      {(actionError || refreshError) && <div className="mb-5"><ErrorState message={actionError || refreshError} /></div>}
       {tab === "home" && <HomePage data={data} onAddFood={() => setModal({ type: "fast-food" })} onLogWeight={() => setModal({ type: "weight" })} onOpenWorkout={() => changeTab("workout")} adaptiveReview={adaptiveReview} onOpenCalorieReview={() => setModal({ type: "calorie-review" })} />}
       {tab === "food" && <FoodPage data={data} onAdd={() => setModal({ type: "fast-food" })} onQuickAdd={(seed) => setModal({ type: "fast-food", seed })} onEdit={(entry) => setModal({ type: "food", entry })} onDelete={handleDeleteFood} onToggleFavourite={handleToggleFavourite} onSaveAsMeal={(entries, mealType) => setModal({ type: "fast-food", initialTab: "meals", initialMeal: { name: "", defaultMealType: mealType, items: entries.map((entry) => ({ name: entry.name, calories: entry.calories, proteinG: entry.protein_g })) } })} onCopyMeal={handleCopyMeal} onLogSavedMeal={handleLogSavedMeal} onSetDayComplete={handleFoodLogCompletion} />}
-      {tab === "workout" && <WorkoutPage userId={user.id} data={data} dumbbellMaxKg={profile.has_adjustable_dumbbells ? profile.dumbbell_max_kg : null} onRefresh={refresh} />}
+      {tab === "workout" && <WorkoutPage userId={user.id} data={data} dumbbellMaxKg={profile.has_adjustable_dumbbells ? profile.dumbbell_max_kg : null} onRefresh={refreshWorkout} onRefreshExercises={refreshExercises} />}
       {tab === "progress" && <ProgressPage data={data} adaptiveReview={adaptiveReview} onOpenCalorieReview={() => setModal({ type: "calorie-review" })} onLogWeight={() => setModal({ type: "weight" })} />}
 
       {modal?.type === "food" && (
@@ -184,7 +201,7 @@ function MainApp({ user, profile, onProfileRefresh }: { user: User; profile: Pro
             <div><dt className="text-slate-500">Current target</dt><dd className="mt-1 text-slate-200">{data.calorieTarget?.calories.toLocaleString() ?? "—"} kcal</dd></div>
           </dl>
           <p className="mt-4 text-xs leading-5 text-slate-500">Formula baseline: {data.calorieTargetHistory.find((target) => target.reason === "initial_estimate" || target.reason === "profile_recalculation")?.calories.toLocaleString() ?? "—"} kcal. Accepted adaptive changes create new history rows and never overwrite it.</p>
-          <AdaptiveCalorieSettings enabled={profile.adaptive_calorie_enabled} onToggle={async (enabled) => { await setAdaptiveCalorieEnabled(user.id, enabled); await onProfileRefresh(); await refresh() }} />
+          <AdaptiveCalorieSettings enabled={profile.adaptive_calorie_enabled} onToggle={async (enabled) => { await setAdaptiveCalorieEnabled(user.id, enabled); await onProfileRefresh() }} />
           <EquipmentSettings profile={profile} onSave={async (input) => { await saveEquipmentSettings(user.id, input); await onProfileRefresh() }} />
           <Button variant="outline" size="lg" className="mt-6 h-11 w-full text-red-200 hover:text-red-100" onClick={() => supabase.auth.signOut()}><LogOut /> Sign out</Button>
         </Modal>

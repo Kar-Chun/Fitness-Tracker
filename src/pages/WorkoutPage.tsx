@@ -7,7 +7,7 @@ import { LiveWorkoutLogger } from "../components/workout/LiveWorkoutLogger.tsx"
 import { RoutineBuilder } from "../components/workout/RoutineBuilder.tsx"
 import { WorkoutCompletionSummary } from "../components/workout/WorkoutCompletionSummary.tsx"
 import { EmptyState, IconBadge, PageHeader, SectionHeader, Surface } from "../components/shared/Visual.tsx"
-import { completeWorkoutSession, deleteRoutine, discardWorkoutSession, saveCustomExercise, saveFinishedWorkout, saveRoutine, startWorkout, startWorkoutFromSession } from "../services/fitness.ts"
+import { completeWorkoutSession, deleteRoutine, discardWorkoutSession, saveCustomExercise, saveFinishedWorkout, saveRoutine, startWorkout, startWorkoutFromSession } from "../services/workout.ts"
 import type { CustomExerciseInput, FinishedWorkoutInput, FitnessData, RoutineInput, WorkoutSessionWithDetails, WorkoutTemplate } from "../types/fitness.ts"
 
 type WorkoutView =
@@ -23,6 +23,7 @@ interface WorkoutPageProps {
   data: FitnessData
   dumbbellMaxKg: number | null
   onRefresh: () => Promise<void>
+  onRefreshExercises: () => Promise<void>
 }
 
 function daysSince(iso: string | null) {
@@ -36,7 +37,7 @@ function routineDuration(routine: WorkoutTemplate, sessions: WorkoutSessionWithD
   return Math.round(recent.reduce((total, session) => total + Math.max(1, (new Date(session.completed_at ?? session.started_at).getTime() - new Date(session.started_at).getTime()) / 60_000), 0) / recent.length)
 }
 
-export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh }: WorkoutPageProps) {
+export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh, onRefreshExercises }: WorkoutPageProps) {
   const [view, setView] = useState<WorkoutView>({ type: "overview" })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -107,7 +108,7 @@ export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh }: WorkoutP
 
   async function handleCreateCustom(input: CustomExerciseInput) {
     const created = await saveCustomExercise(userId, input)
-    await onRefresh()
+    await onRefreshExercises()
     return created
   }
 
