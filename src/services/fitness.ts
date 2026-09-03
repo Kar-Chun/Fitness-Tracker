@@ -299,12 +299,6 @@ export async function loadFitnessData(userId: string): Promise<FitnessData> {
 }
 
 export async function saveFoodEntry(userId: string, input: FoodEntryInput, id?: string) {
-  let previousDate: string | null = null
-  if (id) {
-    const { data, error } = await supabase.from("food_entries").select("eaten_at").eq("id", id).eq("user_id", userId).maybeSingle()
-    if (error) throw new Error(error.message)
-    previousDate = data ? toLocalDateKey(data.eaten_at as string) : null
-  }
   const payload = {
     user_id: userId,
     name: input.name.trim(),
@@ -321,7 +315,6 @@ export async function saveFoodEntry(userId: string, input: FoodEntryInput, id?: 
     ? await supabase.from("food_entries").update(payload).eq("id", id).eq("user_id", userId)
     : await supabase.from("food_entries").insert(payload)
   if (result.error) throw new Error(result.error.message)
-  await invalidateFoodLogCompletion(userId, [previousDate, toLocalDateKey(new Date(input.eatenAt))])
 }
 
 export async function analyzeFoodText(description: string) {
@@ -422,7 +415,6 @@ async function insertFoodEntries(userId: string, inputs: FoodEntryInput[]) {
   }))
   const { error } = await supabase.from("food_entries").insert(payload)
   if (error) throw new Error(error.message)
-  await invalidateFoodLogCompletion(userId, inputs.map((input) => toLocalDateKey(new Date(input.eatenAt))))
 }
 
 export async function repeatFoodEntry(userId: string, entry: FoodEntry, now = new Date()) {
@@ -453,37 +445,20 @@ export async function deleteFavouriteFood(userId: string, id: string) {
   if (error) throw new Error(error.message)
 }
 
-export async function saveSavedMeal(userId: string, input: SavedMealInput, id?: string) {
+export async function saveSavedMeal(input: SavedMealInput, id?: string) {
   if (!input.items.length) throw new Error("Add at least one item to the saved meal.")
-  const mealPayload = {
-    user_id: userId,
-    name: input.name.trim(),
-    default_meal_type: input.defaultMealType,
-  }
-  let mealId = id
-  if (mealId) {
-    const { error } = await supabase.from("saved_meals").update(mealPayload).eq("id", mealId).eq("user_id", userId)
-    if (error) throw new Error(error.message)
-    const { error: deleteError } = await supabase.from("saved_meal_items").delete().eq("saved_meal_id", mealId).eq("user_id", userId)
-    if (deleteError) throw new Error(deleteError.message)
-  } else {
-    const { data, error } = await supabase.from("saved_meals").insert(mealPayload).select("id").single()
-    mealId = (requireData(data, error, "Could not create the saved meal.") as { id: string }).id
-  }
-
-  const items = input.items.map((item, position) => ({
-    user_id: userId,
-    saved_meal_id: mealId,
-    name: item.name.trim(),
-    calories: item.calories,
-    protein_g: item.proteinG,
-    position,
-  }))
-  const { error: itemError } = await supabase.from("saved_meal_items").insert(items)
-  if (itemError) {
-    if (!id) await supabase.from("saved_meals").delete().eq("id", mealId).eq("user_id", userId)
-    throw new Error(itemError.message)
-  }
+  if (!input.name.trim()) throw new Error("Saved meal name is required.")
+  const { data, error } = await supabase.rpc("save_saved_meal", {
+    p_meal_id: id ?? null,
+    p_name: input.name.trim(),
+    p_default_meal_type: input.defaultMealType,
+    p_items: input.items.map((item) => ({
+      name: item.name.trim(),
+      calories: item.calories,
+      proteinG: item.proteinG,
+    })),
+  })
+  return requireData(data, error, "Could not save the meal.") as string
 }
 
 export async function deleteSavedMeal(userId: string, id: string) {
@@ -496,22 +471,8 @@ export async function logSavedMeal(userId: string, meal: SavedMeal, mealType?: F
 }
 
 export async function deleteFoodEntry(userId: string, id: string) {
-  const { data, error: lookupError } = await supabase.from("food_entries").select("eaten_at").eq("id", id).eq("user_id", userId).maybeSingle()
-  if (lookupError) throw new Error(lookupError.message)
   const { error } = await supabase.from("food_entries").delete().eq("id", id).eq("user_id", userId)
   if (error) throw new Error(error.message)
-  if (data) await invalidateFoodLogCompletion(userId, [toLocalDateKey(data.eaten_at as string)])
-}
-
-async function invalidateFoodLogCompletion(userId: string, dates: Array<string | null>) {
-  const uniqueDates = [...new Set(dates.filter((date): date is string => Boolean(date)))]
-  if (!uniqueDates.length) return
-  const { error } = await supabase
-    .from("daily_food_log_status")
-    .update({ is_complete: false, completed_at: null })
-    .eq("user_id", userId)
-    .in("date", uniqueDates)
-  if (error) throw new Error(`Food was saved, but its completion marker could not be reset: ${error.message}`)
 }
 
 export async function setDailyFoodLogComplete(userId: string, date: string, isComplete: boolean) {
@@ -618,37 +579,14 @@ function validateRoutine(input: RoutineInput) {
   })
 }
 
-export async function saveRoutine(userId: string, input: RoutineInput, id?: string) {
+export async function saveRoutine(input: RoutineInput, id?: string) {
   validateRoutine(input)
-  let routineId = id
-  if (routineId) {
-    const { error } = await supabase.from("workout_templates").update({ name: input.name.trim() }).eq("id", routineId).eq("user_id", userId)
-    if (error) throw new Error(error.message)
-  } else {
-    const { data, error } = await supabase.from("workout_templates").insert({ user_id: userId, name: input.name.trim() }).select("id").single()
-    routineId = (requireData(data, error, "Could not create routine.") as { id: string }).id
-  }
-
-  const { error: deleteError } = await supabase.from("workout_template_exercises").delete().eq("template_id", routineId).eq("user_id", userId)
-  if (deleteError) throw new Error(deleteError.message)
-  if (input.exercises.length) {
-    const rows = input.exercises.map((exercise, position) => ({
-      user_id: userId,
-      template_id: routineId,
-      exercise_id: exercise.exerciseId,
-      exercise_name: exercise.exerciseName,
-      position,
-      target_sets: exercise.targetSets,
-      target_rep_min: exercise.targetRepMin,
-      target_rep_max: exercise.targetRepMax,
-      include_in_light: exercise.includeInLight,
-      light_target_sets: exercise.includeInLight ? exercise.lightTargetSets ?? Math.min(2, exercise.targetSets) : null,
-      progression_step_kg: exercise.progressionStepKg,
-    }))
-    const { error } = await supabase.from("workout_template_exercises").insert(rows)
-    if (error) throw new Error(error.message)
-  }
-  return routineId
+  const { data, error } = await supabase.rpc("save_workout_routine", {
+    p_routine_id: id ?? null,
+    p_name: input.name.trim(),
+    p_exercises: input.exercises,
+  })
+  return requireData(data, error, "Could not save routine.") as string
 }
 
 export async function deleteRoutine(userId: string, id: string) {

@@ -99,7 +99,7 @@ export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh }: WorkoutP
 
   async function handleSaveRoutine(input: RoutineInput, id?: string) {
     await run(async () => {
-      await saveRoutine(userId, input, id)
+      await saveRoutine(input, id)
       await onRefresh()
       setView({ type: "overview" })
     })

@@ -1,4 +1,4 @@
-import { FOOD_PARSER_MODEL } from "./config.ts"
+import { FOOD_PARSER_MODEL, GEMINI_REQUEST_TIMEOUT_MS } from "./config.ts"
 import { FoodAnalysisError } from "./errors.ts"
 
 export type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } }
@@ -19,12 +19,15 @@ export function extractGeminiStructuredOutput(response: unknown) {
   return null
 }
 
-export async function generateGeminiStructured(parts: GeminiPart[], instructions: string, responseJsonSchema: object, apiKey: string, request: typeof fetch = fetch) {
+export async function generateGeminiStructured(parts: GeminiPart[], instructions: string, responseJsonSchema: object, apiKey: string, request: typeof fetch = fetch, timeoutMs = GEMINI_REQUEST_TIMEOUT_MS) {
   let response: Response
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     response = await request(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(FOOD_PARSER_MODEL)}:generateContent`, {
       method: "POST",
       headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: instructions }] },
         contents: [{ role: "user", parts }],
@@ -32,7 +35,10 @@ export async function generateGeminiStructured(parts: GeminiPart[], instructions
       }),
     })
   } catch {
+    if (controller.signal.aborted) throw new FoodAnalysisError("gemini_timeout", "Gemini took too long to respond. Please try again.", 504)
     throw new FoodAnalysisError("gemini_unavailable", "The meal estimator could not reach Gemini. Please try again.", 503)
+  } finally {
+    clearTimeout(timeout)
   }
   if (response.status === 429) throw new FoodAnalysisError("gemini_rate_limited", "Gemini is temporarily rate limited. Please try again shortly.", 503)
   if (response.status === 401 || response.status === 403) throw new FoodAnalysisError("gemini_authentication_failed", "The Gemini API key is invalid or is not permitted to use this model.", 500)

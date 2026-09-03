@@ -82,7 +82,7 @@ function MainApp({ user, profile, onProfileRefresh }: { user: User; profile: Pro
   }
 
   async function handleSaveMeal(input: SavedMealInput, id?: string) {
-    await saveSavedMeal(user.id, input, id)
+    await saveSavedMeal(input, id)
     await refresh()
   }
 

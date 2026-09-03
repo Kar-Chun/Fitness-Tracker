@@ -6,6 +6,7 @@ import { InlineError } from "../shared/Feedback.tsx"
 import { PageHeader, Surface } from "../shared/Visual.tsx"
 import { ExerciseSearch } from "./ExerciseSearch.tsx"
 import { evaluateExerciseProgression } from "../../lib/workout-progression.ts"
+import { KeyedMutationQueue } from "../../lib/keyed-mutation-queue.ts"
 import { findPreviousExercisePerformance, loadTypeLabel } from "../../lib/workout-drafts.ts"
 import { copyLastSets, createBlankSetDrafts, getFirstSetError, getSetDraftState, getValidSetValues, type EditableSetDraft } from "../../lib/workout-logger.ts"
 import { addWorkoutSessionExercise, deleteExerciseSet, deleteExerciseSetsForSessionExercise, deleteWorkoutSessionExercise, saveExerciseSet, setSessionExerciseStatus } from "../../services/fitness.ts"
@@ -42,6 +43,7 @@ export function LiveWorkoutLogger({ userId, session, data, dumbbellMaxKg, onCrea
   const [highlightedId, setHighlightedId] = useState("")
   const saveTimers = useRef<Record<string, number>>({})
   const saveVersions = useRef<Record<string, number>>({})
+  const saveQueue = useRef(new KeyedMutationQueue())
   const draftsRef = useRef(drafts)
   const exerciseRefs = useRef<Record<string, HTMLElement | null>>({})
 
@@ -93,15 +95,20 @@ export function LiveWorkoutLogger({ userId, session, data, dumbbellMaxKg, onCrea
       return
     }
     setSaveState("saving")
-    saveTimers.current[key] = window.setTimeout(() => persistSet(exercise, index, draft, version), 700)
+    saveTimers.current[key] = window.setTimeout(() => {
+      void saveQueue.current.enqueue(key, () => persistSet(exercise, index, draft, version))
+    }, 700)
   }
 
   function updateSet(exercise: WorkoutSessionExercise, index: number, currentSet: EditableSetDraft, change: Partial<EditableSetDraft>) {
     const next = { ...currentSet, ...change }
-    setDrafts((current) => ({
-      ...current,
-      [exercise.id]: (current[exercise.id] ?? startingSets(exercise)).map((set, setIndex) => setIndex === index ? next : set),
-    }))
+    const currentDrafts = draftsRef.current
+    const nextDrafts = {
+      ...currentDrafts,
+      [exercise.id]: (currentDrafts[exercise.id] ?? startingSets(exercise)).map((set, setIndex) => setIndex === index ? next : set),
+    }
+    draftsRef.current = nextDrafts
+    setDrafts(nextDrafts)
     setError("")
     queueSave(exercise, index, next)
   }
@@ -115,12 +122,27 @@ export function LiveWorkoutLogger({ userId, session, data, dumbbellMaxKg, onCrea
   }
 
   async function removeSet(exercise: WorkoutSessionExercise, index: number) {
-    const draft = drafts[exercise.id]?.[index]
     setBusy(true)
     setError("")
     try {
-      if (draft?.id) await deleteExerciseSet(userId, draft.id)
-      setDrafts((current) => ({ ...current, [exercise.id]: (current[exercise.id] ?? []).filter((_, setIndex) => setIndex !== index) }))
+      const keys = (drafts[exercise.id] ?? []).map((_, setIndex) => `${exercise.id}:${setIndex}`)
+      keys.forEach((key) => {
+        window.clearTimeout(saveTimers.current[key])
+        saveVersions.current[key] = (saveVersions.current[key] ?? 0) + 1
+      })
+      await saveQueue.current.waitFor(keys)
+      const remaining = (drafts[exercise.id] ?? []).filter((_, setIndex) => setIndex !== index)
+      await deleteExerciseSetsForSessionExercise(userId, exercise.id)
+      const savedByIndex = new Map<number, ExerciseSet>()
+      for (const [setIndex, set] of remaining.entries()) {
+        const values = getValidSetValues(set, exercise.load_type)
+        if (values) savedByIndex.set(setIndex, await saveExerciseSet(userId, session.id, exercise.exercise_name_snapshot, setIndex + 1, values.weightKg, values.reps, exercise.id))
+      }
+      setDrafts((current) => ({
+        ...current,
+        [exercise.id]: remaining.map((set, setIndex) => ({ ...set, id: savedByIndex.get(setIndex)?.id })),
+      }))
+      setSaveState("saved")
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : "Could not remove set.")
     } finally {
@@ -130,8 +152,9 @@ export function LiveWorkoutLogger({ userId, session, data, dumbbellMaxKg, onCrea
 
   function copyPrevious(exercise: WorkoutSessionExercise) {
     const previous = findPreviousExercisePerformance(data.sessions.filter((item) => item.id !== session.id), exercise.exercise_id, exercise.exercise_name_snapshot)
-    setDrafts((current) => ({ ...current, [exercise.id]: copyLastSets(previous, exercise.target_sets) }))
-    setSaveState("idle")
+    const copied = copyLastSets(previous, exercise.target_sets)
+    setDrafts((current) => ({ ...current, [exercise.id]: copied }))
+    copied.forEach((set, index) => queueSave(exercise, index, set))
   }
 
   async function addExercise(exercise: ExerciseLibraryItem) {
@@ -154,6 +177,12 @@ export function LiveWorkoutLogger({ userId, session, data, dumbbellMaxKg, onCrea
     setBusy(true)
     setError("")
     try {
+      const keys = (drafts[exercise.id] ?? []).map((_, setIndex) => `${exercise.id}:${setIndex}`)
+      keys.forEach((key) => {
+        window.clearTimeout(saveTimers.current[key])
+        saveVersions.current[key] = (saveVersions.current[key] ?? 0) + 1
+      })
+      await saveQueue.current.waitFor(keys)
       await deleteWorkoutSessionExercise(userId, exercise.id)
       setExercises((current) => current.filter((item) => item.id !== exercise.id))
       setDrafts((current) => { const next = { ...current }; delete next[exercise.id]; return next })
@@ -165,24 +194,29 @@ export function LiveWorkoutLogger({ userId, session, data, dumbbellMaxKg, onCrea
   }
 
   async function finishWorkout() {
+    const latestDrafts = draftsRef.current
     const validationError = getFirstSetError(exercises.map((exercise) => ({
       exerciseName: exercise.exercise_name_snapshot,
       loadType: exercise.load_type,
-      sets: drafts[exercise.id] ?? [],
+      sets: latestDrafts[exercise.id] ?? [],
     })))
     if (validationError) return setError(validationError)
-    const performed = exercises.filter((exercise) => (drafts[exercise.id] ?? []).some((set) => getSetDraftState(set, exercise.load_type) === "valid"))
+    const performed = exercises.filter((exercise) => (latestDrafts[exercise.id] ?? []).some((set) => getSetDraftState(set, exercise.load_type) === "valid"))
     if (!performed.length) return setError("Enter at least one performed set before finishing.")
 
-    Object.values(saveTimers.current).forEach((timer) => window.clearTimeout(timer))
     setBusy(true)
     setSaveState("saving")
     setError("")
     try {
+      Object.entries(saveTimers.current).forEach(([key, timer]) => {
+        window.clearTimeout(timer)
+        saveVersions.current[key] = (saveVersions.current[key] ?? 0) + 1
+      })
+      await saveQueue.current.waitFor()
       const normalizedExercises: WorkoutSessionExercise[] = []
       for (const exercise of exercises) {
         await deleteExerciseSetsForSessionExercise(userId, exercise.id)
-        const validSets = (drafts[exercise.id] ?? []).map((set) => getValidSetValues(set, exercise.load_type)).filter((values) => values !== null)
+        const validSets = (latestDrafts[exercise.id] ?? []).map((set) => getValidSetValues(set, exercise.load_type)).filter((values) => values !== null)
         const savedSets: ExerciseSet[] = []
         for (const [savedIndex, values] of validSets.entries()) {
           savedSets.push(await saveExerciseSet(userId, session.id, exercise.exercise_name_snapshot, savedIndex + 1, values.weightKg, values.reps, exercise.id))
@@ -197,6 +231,22 @@ export function LiveWorkoutLogger({ userId, session, data, dumbbellMaxKg, onCrea
       setError(finishError instanceof Error ? finishError.message : "Could not finish workout.")
       setSaveState("idle")
     } finally {
+      setBusy(false)
+    }
+  }
+
+  async function discardWorkout() {
+    setBusy(true)
+    setError("")
+    try {
+      Object.entries(saveTimers.current).forEach(([key, timer]) => {
+        window.clearTimeout(timer)
+        saveVersions.current[key] = (saveVersions.current[key] ?? 0) + 1
+      })
+      await saveQueue.current.waitFor()
+      await onDiscard()
+    } catch (discardError) {
+      setError(discardError instanceof Error ? discardError.message : "Could not discard the workout.")
       setBusy(false)
     }
   }
@@ -248,7 +298,7 @@ export function LiveWorkoutLogger({ userId, session, data, dumbbellMaxKg, onCrea
       <section className="grid gap-3" aria-labelledby="add-workout-exercise"><div><h2 id="add-workout-exercise" className="font-medium text-slate-100">Add exercise</h2><p className="mt-1 text-sm text-slate-500">Adds it only to this workout.</p></div><ExerciseSearch library={data.exercises} sessions={data.sessions} excludedIds={exercises.map((exercise) => exercise.exercise_id).filter((id): id is string => Boolean(id))} onAdd={addExercise} onCreateCustom={onCreateCustom} /></section>
       <InlineError message={error} />
       <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 -mx-2 rounded-2xl border border-slate-800 bg-slate-950/95 p-2 shadow-2xl shadow-black/35 backdrop-blur md:bottom-4"><Button className="h-12 w-full" disabled={busy} onClick={finishWorkout}>{busy && <LoaderCircle className="animate-spin" />} Finish Workout</Button></div>
-      <Button type="button" variant="ghost" className="text-red-300" disabled={busy} onClick={onDiscard}><Trash2 /> Discard unfinished workout</Button>
+      <Button type="button" variant="ghost" className="text-red-300" disabled={busy} onClick={discardWorkout}><Trash2 /> Discard unfinished workout</Button>
     </div>
   )
 }
