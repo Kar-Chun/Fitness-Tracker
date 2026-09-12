@@ -5,7 +5,7 @@ import { caloriesConsumed, caloriesRemaining } from "../lib/calculations.ts"
 import { addLocalDateKeyDays, formatDateTime, parseLocalDateKey, toLocalDateKey, toLocalDateTimeInput } from "../lib/date.ts"
 import { getRecentFoods, historyOptionToFoodInput, normalizeFoodName, repeatFoodInput, savedMealTotal } from "../lib/food-history.ts"
 import type { FavouriteFood, FitnessData, FoodEntry, FoodEntryInput, MealType, SavedMeal } from "../types/fitness.ts"
-import { EmptyState, PageHeader, ProgressBar, SectionHeader, Surface } from "../components/shared/Visual.tsx"
+import { EmptyState, IconBadge, MobilePageHeader, ProgressBar, SectionHeader, Surface } from "../components/shared/Visual.tsx"
 
 interface FoodPageProps {
   data: FitnessData
@@ -83,49 +83,52 @@ export function FoodPage({ data, onAdd, onQuickAdd, onEdit, onDelete, onToggleFa
   }
 
   return (
-    <div className="grid gap-5">
-      <PageHeader eyebrow="Daily diary" title="Food" description="Log quickly, then get on with your day." action={<Button size="lg" className="h-11 px-5" onClick={onAdd}><Plus /> Add food</Button>} />
+    <div className="grid gap-4 sm:gap-6">
+      <MobilePageHeader title="Food" subtitle="Your daily diary." />
 
-      <div className="grid max-w-md grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2">
-        <Button variant="outline" size="icon" className="size-11" onClick={() => setSelectedDate(addLocalDateKeyDays(selectedDate, -1))} aria-label="Previous day"><ChevronLeft /></Button>
-        <div className="flex h-11 min-w-0 items-center justify-between rounded-xl border border-slate-700/80 bg-slate-900/70 pl-4 pr-1">
-          <span className="truncate text-sm font-medium text-slate-200">{diaryDateLabel(selectedDate, today)}</span>
-          <label className="relative grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg text-slate-500 transition hover:bg-slate-800 hover:text-blue-300 focus-within:ring-2 focus-within:ring-blue-500/40" title="Choose date">
+      <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2 sm:max-w-md">
+        <Button variant="outline" size="icon" className="size-11 rounded-xl" onClick={() => setSelectedDate(addLocalDateKeyDays(selectedDate, -1))} aria-label="Previous day"><ChevronLeft /></Button>
+        <div className="flex h-11 min-w-0 items-center justify-between rounded-xl border border-[#213754] bg-[#0d1a2c] pl-3.5 pr-1">
+          <span className="min-w-0 truncate text-sm font-medium tabular-nums text-slate-200">{diaryDateLabel(selectedDate, today)}</span>
+          <label className="relative grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg text-blue-300 transition hover:bg-blue-500/10 focus-within:ring-2 focus-within:ring-blue-500/40" title="Choose date">
             <CalendarDays className="size-4" />
-            <input className="absolute inset-0 cursor-pointer opacity-0" type="date" max={today} value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} aria-label="Choose diary date" />
+            <input className="absolute inset-0 size-full cursor-pointer opacity-0" type="date" max={today} value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} aria-label="Choose diary date" />
           </label>
         </div>
-        <Button variant="outline" size="icon" className="size-11" disabled={selectedDate >= today} onClick={() => setSelectedDate(addLocalDateKeyDays(selectedDate, 1))} aria-label="Next day"><ChevronRight /></Button>
+        <Button variant="outline" size="icon" className="size-11 rounded-xl" disabled={selectedDate >= today} onClick={() => setSelectedDate(addLocalDateKeyDays(selectedDate, 1))} aria-label="Next day"><ChevronRight /></Button>
       </div>
 
-      <Surface className="p-4 sm:p-5">
-        <div className="grid grid-cols-3 gap-3">
+      <Surface className="steady-card-glow overflow-hidden p-4 sm:p-5">
+        <div className="grid grid-cols-3 gap-1">
           <DiaryMetric label="Eaten" value={consumed} />
           <DiaryMetric label="Target" value={target} bordered />
           <DiaryMetric label={remaining >= 0 ? "Remaining" : "Over"} value={Math.abs(remaining)} accent={remaining < 0 ? "amber" : "blue"} />
         </div>
-        <ProgressBar className="mt-5" value={percentage} label="Daily calorie progress" over={remaining < 0} />
+        <ProgressBar className="mt-4" value={percentage} label="Daily calorie progress" over={remaining < 0} />
       </Surface>
 
-      <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2.5 ${isComplete ? "border-blue-400/15 bg-blue-500/5" : "border-slate-800/80 bg-slate-900/40"}`}>
-        <div className="flex min-w-0 items-center gap-2.5"><CheckCircle2 className={`size-4.5 shrink-0 ${isComplete ? "text-blue-400" : "text-slate-600"}`} /><div><p className="text-sm font-medium text-slate-300">{isComplete ? "Food log complete" : "Food log incomplete"}</p><p className="text-xs text-slate-600">Complete days improve calorie reviews.</p></div></div>
-        <Button variant="ghost" size="sm" disabled={completionBusy} onClick={toggleComplete}>{completionBusy && <LoaderCircle className="animate-spin" />}{isComplete ? "Undo" : "Mark complete"}</Button>
-      </div>
+      <Surface as="div" className={`flex items-center gap-3 p-3.5 ${isComplete ? "border-cyan-300/15 bg-cyan-400/[0.06]" : ""}`}>
+        <IconBadge icon={CheckCircle2} className={isComplete ? "border-cyan-300/15 bg-cyan-400/10 text-cyan-300" : "border-slate-700 bg-slate-800/60 text-slate-500"} />
+        <div className="min-w-0 flex-1"><p className="text-sm font-medium text-slate-200">{isComplete ? "Food log complete" : "Food logging in progress"}</p><p className="mt-0.5 text-xs leading-4 text-slate-500">Complete days help Steady review your calorie target.</p></div>
+        <Button variant="ghost" size="sm" className="shrink-0" disabled={completionBusy} onClick={toggleComplete}>{completionBusy && <LoaderCircle className="animate-spin" />}{isComplete ? "Undo" : "Mark complete"}</Button>
+      </Surface>
+
+      <Button size="lg" className="h-11 w-full sm:w-fit" onClick={onAdd}><Plus /> Add food</Button>
 
       {error && <p className="rounded-xl bg-red-400/10 px-3 py-2 text-sm text-red-200">{error}</p>}
 
-      {grouped.length ? <div className="grid gap-4">{grouped.map(({ meal, entries: mealEntries }) => (
+      {grouped.length ? <div className="grid gap-3">{grouped.map(({ meal, entries: mealEntries }) => (
         <Surface key={meal} className="overflow-visible">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 px-4 py-3">
-            <div className="flex items-baseline gap-2"><h2 className="text-xs font-semibold uppercase tracking-[0.13em] text-slate-400">{mealLabels[meal]}</h2><span className="text-xs tabular-nums text-slate-600">{caloriesConsumed(mealEntries)} kcal</span></div>
-            <div className="flex gap-1"><Button variant="ghost" size="sm" onClick={() => onSaveAsMeal(mealEntries, meal)}><Save /> Save as meal</Button>{selectedDate !== today && <Button variant="ghost" size="sm" disabled={busyMeal === `copy-${meal}`} onClick={() => copyMeal(mealEntries, meal)}>{busyMeal === `copy-${meal}` ? <LoaderCircle className="animate-spin" /> : <Copy />} Copy to today</Button>}</div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1b2d45] px-4 py-3">
+            <div className="flex items-baseline gap-2"><h2 className="text-xs font-semibold uppercase tracking-[0.13em] text-slate-300">{mealLabels[meal]}</h2><span className="text-xs tabular-nums text-blue-300">{caloriesConsumed(mealEntries)} kcal</span></div>
+            <div className="flex gap-1"><Button variant="ghost" size="sm" onClick={() => onSaveAsMeal(mealEntries, meal)}><Save /> Save meal</Button>{selectedDate !== today && <Button variant="ghost" size="sm" disabled={busyMeal === `copy-${meal}`} onClick={() => copyMeal(mealEntries, meal)}>{busyMeal === `copy-${meal}` ? <LoaderCircle className="animate-spin" /> : <Copy />} Copy today</Button>}</div>
           </div>
           <div>{mealEntries.map((entry, index) => <FoodRow key={entry.id} entry={entry} index={index} favourite={data.favouriteFoods.some((item) => item.normalized_name === normalizeFoodName(entry.name))} busy={busyFavourite === entry.id} onQuickAdd={onQuickAdd} onFavourite={toggleFavourite} onEdit={onEdit} onDelete={onDelete} />)}</div>
         </Surface>
-      ))}</div> : <EmptyState icon={Utensils} title={`Nothing logged ${selectedDate === today ? "today" : "on this day"}`} description="Choose a recent food or add a manual entry." action={selectedDate === today ? <Button onClick={onAdd}><Plus /> Add food</Button> : undefined} />}
+      ))}</div> : <EmptyState icon={Utensils} title={`Nothing logged ${selectedDate === today ? "today" : "on this day"}`} description="Choose a recent food or add a manual entry." />}
 
       {selectedDate === today && (recent.length > 0 || data.favouriteFoods.length > 0 || data.savedMeals.length > 0) && (
-        <section className="grid gap-4">
+        <section className="grid gap-3">
           <SectionHeader eyebrow="Faster logging" title="Quick add" action={<Button variant="ghost" size="sm" onClick={onAdd}>View all</Button>} />
           {recent.length > 0 && <QuickRow title="Recent" items={recent.map((item) => ({ key: item.key, name: item.name, detail: `${item.calories} kcal`, action: () => onQuickAdd(historyOptionToFoodInput(item)) }))} />}
           {data.favouriteFoods.length > 0 && <QuickRow title="Favourites" items={data.favouriteFoods.slice(0, 3).map((item) => ({ key: item.id, name: item.name, detail: `${item.calories} kcal`, action: () => onQuickAdd({ name: item.name, calories: item.calories, proteinG: item.protein_g, mealType: item.default_meal_type ?? "snack", eatenAt: toLocalDateTimeInput() }) }))} />}
@@ -137,13 +140,14 @@ export function FoodPage({ data, onAdd, onQuickAdd, onEdit, onDelete, onToggleFa
 }
 
 function DiaryMetric({ label, value, bordered = false, accent }: { label: string; value: number; bordered?: boolean; accent?: "blue" | "amber" }) {
-  return <div className={bordered ? "border-x border-slate-800 px-3 sm:px-5" : ""}><p className="text-[0.68rem] font-semibold uppercase tracking-wider text-slate-600">{label}</p><p className={`mt-1 text-2xl font-semibold tabular-nums ${accent === "blue" ? "text-blue-300" : accent === "amber" ? "text-amber-300" : "text-slate-100"}`}>{value.toLocaleString()}</p><p className="text-xs text-slate-600">kcal</p></div>
+  return <div className={`min-w-0 text-center ${bordered ? "border-x border-[#213754] px-2" : "px-1"}`}><p className={`truncate text-2xl font-semibold tracking-[-0.04em] tabular-nums ${accent === "blue" ? "text-cyan-300" : accent === "amber" ? "text-amber-300" : "text-slate-100"}`}>{value.toLocaleString()}</p><p className="mt-1 text-[0.65rem] font-medium text-slate-500">{label}</p></div>
 }
 
 function FoodRow({ entry, index, favourite, busy, onQuickAdd, onFavourite, onEdit, onDelete }: { entry: FoodEntry; index: number; favourite: boolean; busy: boolean; onQuickAdd: (input: FoodEntryInput) => void; onFavourite: (entry: FoodEntry) => Promise<void>; onEdit: (entry: FoodEntry) => void; onDelete: (entry: FoodEntry) => void }) {
   return (
-    <article className={`flex items-center gap-3 px-4 py-3 ${index ? "border-t border-slate-800/70" : ""}`}>
-      <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-slate-100">{entry.name}</p><p className="mt-1 truncate text-xs text-slate-600">{formatDateTime(entry.eaten_at)}{entry.protein_g !== null ? ` · ${entry.protein_g}g protein` : ""}</p></div>
+    <article className={`flex min-w-0 items-center gap-3 px-3.5 py-3 ${index ? "border-t border-[#1b2d45]" : ""}`}>
+      <IconBadge icon={Utensils} className="size-9 border-blue-400/10 bg-blue-500/10 text-blue-300" />
+      <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-slate-100">{entry.name}</p><p className="mt-0.5 truncate text-[0.7rem] text-slate-500">{formatDateTime(entry.eaten_at)}{entry.protein_g !== null ? ` · ${entry.protein_g}g protein` : ""}</p></div>
       <p className="shrink-0 text-sm font-medium tabular-nums text-slate-300">{entry.calories} kcal</p>
       <Button variant="ghost" size="sm" className="hidden sm:inline-flex" onClick={() => onQuickAdd(repeatFoodInput(entry))}><RotateCcw /> Log again</Button>
       <details className="group relative">
@@ -164,5 +168,5 @@ function FoodAction({ icon: Icon, label, onClick, disabled, destructive = false,
 }
 
 function QuickRow({ title, items }: { title: string; items: { key: string; name: string; detail: string; action: () => void; busy?: boolean }[] }) {
-  return <div><h3 className="mb-2 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-600">{title}</h3><div className="grid gap-2 sm:grid-cols-3">{items.map((item) => <button key={item.key} type="button" disabled={item.busy} onClick={item.action} className="steady-interactive flex min-h-16 items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-left disabled:opacity-50"><span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-200">{item.name}</span><span className="mt-1 block text-xs text-slate-500">{item.detail}</span></span>{item.busy ? <LoaderCircle className="size-4 shrink-0 animate-spin text-blue-400" /> : <Plus className="size-4 shrink-0 text-blue-400" />}</button>)}</div></div>
+  return <div><h3 className="mb-2 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-600">{title}</h3><div className="grid gap-2 sm:grid-cols-3">{items.map((item) => <button key={item.key} type="button" disabled={item.busy} onClick={item.action} className="steady-interactive flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[#1b2d45] bg-[#0d1a2c] px-4 py-3 text-left disabled:opacity-50"><span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-200">{item.name}</span><span className="mt-1 block text-xs text-slate-500">{item.detail}</span></span>{item.busy ? <LoaderCircle className="size-4 shrink-0 animate-spin text-blue-400" /> : <Plus className="size-4 shrink-0 text-blue-400" />}</button>)}</div></div>
 }

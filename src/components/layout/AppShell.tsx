@@ -39,7 +39,7 @@ export function AppShell({ activeTab, onTabChange, onOpenAccount, email, childre
   }
 
   return (
-    <div className="min-h-dvh bg-[#07101e] text-white">
+    <div className="min-h-dvh bg-[radial-gradient(circle_at_50%_-8rem,rgba(32,99,190,0.15),transparent_30rem),#050d19] text-white">
       <aside className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-slate-800/80 bg-[#091423] transition-[width] duration-200 md:flex ${sidebarCollapsed ? "w-[4.5rem]" : "w-60"}`} aria-label="Desktop navigation">
         <div className={`flex h-[4.5rem] shrink-0 items-center ${sidebarCollapsed ? "justify-center px-2" : "gap-3 px-5"}`}>
           <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-500 text-white shadow-[0_8px_22px_-10px_rgba(59,130,246,0.9)]"><Activity className="size-5" /></span>
@@ -65,27 +65,18 @@ export function AppShell({ activeTab, onTabChange, onOpenAccount, email, childre
         </div>
       </aside>
 
+      <Button variant="ghost" size="icon" className="fixed right-4 top-[calc(env(safe-area-inset-top)+0.6rem)] z-30 size-10 rounded-full border border-[#1b2d45] bg-[#0d1a2c]/90 text-slate-400 shadow-lg backdrop-blur-md md:hidden" onClick={onOpenAccount} aria-label="Open profile and settings" title="Profile and settings"><Settings /></Button>
+
       <div className={`min-h-dvh transition-[margin-left] duration-200 ${sidebarCollapsed ? "md:ml-[4.5rem]" : "md:ml-60"}`}>
-        <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-[#07101e]/95 px-4 backdrop-blur-xl md:hidden">
-          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="grid size-9 place-items-center rounded-xl bg-blue-500"><Activity className="size-5" /></span>
-              <span className="font-semibold tracking-tight">Steady</span>
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={onOpenAccount} aria-label="Open profile and settings" title="Profile and settings"><Settings /></Button>
-            </div>
-          </div>
-        </header>
-        <main className="mx-auto min-w-0 max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:px-8 md:pb-12 md:pt-10 xl:px-10">{children}</main>
+        <main className="mx-auto min-w-0 max-w-7xl px-4 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top)+0.9rem)] sm:px-6 sm:pt-5 md:px-8 md:pb-12 md:pt-10 xl:px-10">{children}</main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-slate-950/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden" aria-label="Primary navigation">
-        <div className="mx-auto grid max-w-lg grid-cols-4">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#1b2d45] bg-[#071220]/95 px-2 pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-14px_35px_-28px_rgba(0,0,0,0.95)] backdrop-blur-xl md:hidden" aria-label="Primary navigation">
+        <div className="mx-auto grid max-w-lg grid-cols-4 gap-1">
           {tabs.map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" onClick={() => onTabChange(id)} aria-label={label} aria-current={activeTab === id ? "page" : undefined} className={`relative grid min-h-14 place-items-center gap-0.5 rounded-xl text-[11px] font-medium outline-none transition duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/50 ${activeTab === id ? "text-blue-400" : "text-slate-500"}`}>
-              {activeTab === id && <span className="absolute top-0 h-0.5 w-6 rounded-full bg-blue-400" />}
-              <Icon className="size-5" /> {label}
+            <button key={id} type="button" onClick={() => onTabChange(id)} aria-label={label} aria-current={activeTab === id ? "page" : undefined} className={`relative grid min-h-[3.65rem] place-items-center content-center gap-0.5 rounded-xl text-[0.65rem] font-medium outline-none transition duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/50 ${activeTab === id ? "text-sky-400" : "text-slate-600 active:text-slate-300"}`}>
+              <span className={`grid size-7 place-items-center rounded-lg transition duration-200 ${activeTab === id ? "bg-blue-500/12 shadow-[0_0_18px_-8px_rgba(56,189,248,0.8)]" : ""}`}><Icon className="size-[1.15rem]" /></span>
+              {label}
             </button>
           ))}
         </div>

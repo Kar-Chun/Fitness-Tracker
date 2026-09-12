@@ -1,7 +1,7 @@
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Dumbbell, Plus, Scale, Utensils } from "lucide-react"
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Dumbbell, Flame, Plus, Scale } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CalorieReviewCard } from "../components/calories/CalorieReviewCard.tsx"
-import { IconBadge, PageHeader, ProgressBar, Surface } from "../components/shared/Visual.tsx"
+import { CircularProgress, IconBadge, MobilePageHeader, ProgressBar, Surface } from "../components/shared/Visual.tsx"
 import { caloriesConsumed, caloriesRemaining, entriesForToday, getWeightTrend } from "../lib/calculations.ts"
 import type { AdaptiveReviewResult } from "../lib/calorie-adaptation.ts"
 import type { FitnessData } from "../types/fitness.ts"
@@ -26,61 +26,56 @@ export function HomePage({ data, onAddFood, onLogWeight, onOpenWorkout, adaptive
   const target = data.calorieTarget?.calories ?? 0
   const remaining = caloriesRemaining(target, consumed)
   const percentage = target > 0 ? Math.min(100, Math.max(0, (consumed / target) * 100)) : 0
+  const isOverTarget = target > 0 && remaining < 0
   const recentWorkout = data.sessions.find((session) => session.completed_at)
   const trend = getWeightTrend(data.weightEntries)
   const completedExercises = recentWorkout?.session_exercises.filter((exercise) => exercise.status === "completed").length ?? 0
   const workoutAge = daysSince(recentWorkout?.completed_at ?? null)
 
   return (
-    <div className="grid gap-6">
-      <PageHeader eyebrow="Today" title="Keep it steady." description="Your daily nutrition, training, and weight at a glance." />
+    <div className="grid gap-4 sm:gap-6">
+      <MobilePageHeader eyebrow="Good morning." title="Keep it steady." subtitle="Your day, clearly at a glance." />
 
-      <Surface className="relative overflow-hidden p-5 sm:p-7">
-        <div className="absolute inset-x-0 top-0 h-px bg-blue-400/35" />
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5"><IconBadge icon={Utensils} /><p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Calories</p></div>
-            <p className="mt-5 text-4xl font-semibold tracking-[-0.045em] text-slate-50 tabular-nums sm:text-5xl">{consumed.toLocaleString()} <span className="text-base font-normal tracking-normal text-slate-500 sm:text-lg">/ {target.toLocaleString()} kcal</span></p>
-            <p className={`mt-2 text-sm ${remaining < 0 ? "text-amber-300" : "text-slate-400"}`}><span className="font-semibold tabular-nums text-slate-200">{Math.abs(remaining).toLocaleString()}</span> kcal {remaining >= 0 ? "remaining" : "over target"}</p>
-          </div>
-          <Button size="lg" className="h-11 px-5" onClick={onAddFood}><Plus /> Add food</Button>
+      <Surface className="steady-card-glow relative overflow-hidden p-4 sm:p-7">
+        <div className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/50 to-transparent" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5"><IconBadge icon={Flame} className="size-8 text-cyan-300" /><p className="text-[0.72rem] font-semibold text-slate-300">Calories</p></div>
+          <span className="rounded-full border border-blue-400/10 bg-blue-500/8 px-2.5 py-1 text-[0.65rem] font-medium text-blue-300">Today</span>
         </div>
-        <ProgressBar className="mt-7" value={percentage} label="Daily calorie progress" over={remaining < 0} />
-        <div className="mt-3 flex justify-between text-xs text-slate-600"><span>0</span><span>{target.toLocaleString()} target</span></div>
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[2.35rem] font-semibold leading-none tracking-[-0.055em] text-slate-50 tabular-nums sm:text-5xl">{consumed.toLocaleString()}</p>
+            <p className="mt-2 text-xs tabular-nums text-slate-500">of {target.toLocaleString()} kcal</p>
+          </div>
+          <CircularProgress value={percentage} label="Daily calorie progress" over={isOverTarget} />
+        </div>
+        <ProgressBar className="mt-5" value={percentage} label="Daily calorie progress" over={isOverTarget} />
+        {target > 0 ? <p className={`mt-3 text-[0.78rem] ${isOverTarget ? "text-amber-300" : "text-slate-400"}`}><span className="font-semibold tabular-nums text-slate-100">{Math.abs(remaining).toLocaleString()} kcal</span> {remaining >= 0 ? "remaining" : "over target"}</p> : <p className="mt-3 text-[0.78rem] text-slate-500">No calorie target yet.</p>}
+        <Button size="lg" className="mt-4 h-11 w-full" onClick={onAddFood}><Plus /> Add food</Button>
       </Surface>
 
-      {adaptiveReview && <CalorieReviewCard result={adaptiveReview} compact onReview={onOpenCalorieReview} />}
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Surface className="p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.15em] text-slate-500">{recentWorkout ? "Last workout" : "Workout"}</p>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight">{recentWorkout?.title ?? recentWorkout?.template_name ?? "Ready to train?"}</h2>
-              <p className="mt-1.5 text-sm text-slate-500">{recentWorkout ? `${workoutAge === 0 ? "Today" : `${workoutAge}d ago`} · ${completedExercises} exercises` : `${data.templates.length} routines ready · Quick Workout available`}</p>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <Surface className="flex min-h-[10.5rem] min-w-0 flex-col p-3.5 sm:p-5">
+          <div className="flex items-center justify-between gap-2"><p className="text-[0.7rem] font-semibold text-slate-400">Weight</p><IconBadge icon={Scale} className="size-7 border-cyan-400/10 bg-cyan-400/8 text-cyan-300" /></div>
+          <p className="mt-3 truncate text-2xl font-semibold tracking-[-0.04em] text-slate-50 tabular-nums sm:text-3xl">{trend.latest !== null ? `${trend.latest.toFixed(1)} kg` : "No entry"}</p>
+          {trend.currentAverage !== null ? (
+            <div className="mt-1.5 text-[0.68rem] leading-4 text-slate-500">
+              <p>7-day avg <span className="text-slate-300 tabular-nums">{trend.currentAverage.toFixed(1)} kg</span></p>
+              {trend.change !== null && <p className="mt-1 flex items-center text-cyan-300">{trend.change <= 0 ? <ArrowDownRight className="size-3.5" /> : <ArrowUpRight className="size-3.5" />}{Math.abs(trend.change).toFixed(1)} kg</p>}
             </div>
-            <IconBadge icon={Dumbbell} />
-          </div>
-          <Button size="lg" className="mt-6 h-11" onClick={onOpenWorkout}>{recentWorkout ? "Open workout" : "Choose workout"} <ArrowRight /></Button>
+          ) : <p className="mt-1.5 text-[0.68rem] leading-4 text-slate-600">Keep logging to build your trend.</p>}
+          <Button size="sm" variant="ghost" className="mt-auto h-9 justify-start px-0 text-blue-300" onClick={onLogWeight}>Log weight <ArrowRight /></Button>
         </Surface>
 
-        <Surface className="p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.15em] text-slate-500">Weight</p>
-              <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{trend.latest !== null ? `${trend.latest.toFixed(1)} kg` : "No entries"}</p>
-            </div>
-            <IconBadge icon={Scale} className="border-slate-700 bg-slate-800/70 text-slate-300" />
-          </div>
-          {trend.currentAverage !== null ? (
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-              <span>7-day average <span className="text-slate-300 tabular-nums">{trend.currentAverage.toFixed(1)} kg</span></span>
-              {trend.change !== null && <span className="flex items-center text-blue-300">{trend.change <= 0 ? <ArrowDownRight className="size-4" /> : <ArrowUpRight className="size-4" />}{Math.abs(trend.change).toFixed(1)} kg</span>}
-            </div>
-          ) : <p className="mt-4 text-sm leading-6 text-slate-500">Keep logging your weight to build a 7-day trend.</p>}
-          <Button size="lg" variant="outline" className="mt-6 h-11" onClick={onLogWeight}><Plus /> Log weight</Button>
+        <Surface className="flex min-h-[10.5rem] min-w-0 flex-col p-3.5 sm:p-5">
+          <div className="flex items-center justify-between gap-2"><p className="text-[0.7rem] font-semibold text-slate-400">{recentWorkout ? "Recent workout" : "Workout"}</p><IconBadge icon={Dumbbell} className="size-7" /></div>
+          <p className="mt-3 line-clamp-2 text-base font-semibold leading-5 tracking-tight text-slate-100 sm:text-lg">{recentWorkout?.title ?? recentWorkout?.template_name ?? "Ready to train?"}</p>
+          <p className="mt-1.5 text-[0.68rem] leading-4 text-slate-600">{recentWorkout ? `${workoutAge === 0 ? "Today" : `${workoutAge}d ago`} · ${completedExercises} exercises` : `${data.templates.length} routines ready`}</p>
+          <Button size="sm" variant="ghost" className="mt-auto h-9 justify-start px-0 text-blue-300" onClick={onOpenWorkout}>{recentWorkout ? "Open workout" : "Choose workout"} <ArrowRight /></Button>
         </Surface>
       </div>
+
+      {adaptiveReview && <CalorieReviewCard result={adaptiveReview} compact onReview={onOpenCalorieReview} />}
     </div>
   )
 }
