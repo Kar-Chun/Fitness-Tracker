@@ -78,7 +78,7 @@ The rounded upward wave represents calm, consistent progress. The mark uses navy
 
 Reusable assets are in `public/brand`: `steady-logo.svg` (horizontal, with light/dark wordmark colors), `steady-icon.svg` (symbol tile), and `steady-mono.svg` (single-color symbol using `currentColor` when embedded inline). `public/favicon.svg` uses the same icon; `public/apple-touch-icon.png` is a 180 px render for iOS. No new dependencies are required.
 
-Apply `supabase/migrations/20261025154136_steady_starter_ab.sql` **before deploying the frontend**, using the existing migration workflow:
+Apply `supabase/migrations/20261026160449_steady_starter_ab.sql` **before deploying the frontend**, using the existing migration workflow:
 
 ```sh
 npx supabase db push

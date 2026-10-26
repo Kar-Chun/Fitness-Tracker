@@ -4,10 +4,10 @@ alter table public.profiles
 alter table public.workout_templates
   add column if not exists program_key text;
 
--- Reuse canonical library exercises; only add the two missing movements.
+-- Reuse existing exercise identities; add movements only when absent.
 insert into public.exercises (name, category, load_type, progression_step_kg, requires_dumbbells)
 values
-  ('Dumbbell Floor Press', 'chest', 'per_dumbbell', 2.5, true),
+  ('DB Floor Press', 'chest', 'per_dumbbell', 2.5, true),
   ('Sliding Hamstring Curl', 'legs', 'bodyweight', null, false)
 on conflict (lower(name)) where user_id is null do nothing;
 
@@ -44,7 +44,7 @@ begin
           {"name":"DB Bicep Curl","library":"Dumbbell Curl","sets":2,"min":8,"max":12}
         ]'::jsonb),
         ('Workout B — Full Body + Triceps', '[
-          {"name":"DB Floor Press","library":"Dumbbell Floor Press","sets":3,"min":8,"max":12},
+          {"name":"DB Floor Press","library":"DB Floor Press","sets":3,"min":8,"max":12},
           {"name":"One-Arm Row","library":"One-Arm Dumbbell Row","sets":3,"min":8,"max":12},
           {"name":"Goblet Squat","library":"Goblet Squat","sets":2,"min":8,"max":12},
           {"name":"Sliding Hamstring Curl","library":"Sliding Hamstring Curl","sets":2,"min":8,"max":12},
