@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from "react"
-import { Activity, LoaderCircle } from "lucide-react"
+import { LoaderCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { supabase } from "../lib/supabase.ts"
 import { FieldShell, Input } from "../components/shared/FormField.tsx"
 import { InlineError } from "../components/shared/Feedback.tsx"
+import { SteadyLogo } from "../components/shared/SteadyLogo.tsx"
 
 type AuthMode = "login" | "signup"
 
@@ -33,13 +34,11 @@ export function AuthPage() {
   }
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-5 py-10 text-white">
+    <main className="min-h-dvh bg-[radial-gradient(ellipse_at_top,rgba(79,124,169,0.18),transparent_65%),#050d19] px-5 py-10 text-white">
       <div className="mx-auto grid min-h-[calc(100dvh-5rem)] max-w-md content-center">
         <div className="mb-8">
-          <div className="mb-6 grid size-12 place-items-center rounded-2xl bg-blue-500 text-white shadow-lg shadow-blue-500/20">
-            <Activity className="size-6" />
-          </div>
-          <p className="mb-2 text-sm font-medium text-blue-400">CONSISTENCY, MADE SIMPLE</p>
+          <SteadyLogo className="mb-8" />
+          <p className="mb-2 text-xs font-medium tracking-[0.16em] text-teal-300">CONSISTENCY, MADE SIMPLE</p>
           <h1 className="text-4xl font-semibold tracking-tight">Your daily fitness, clearly.</h1>
           <p className="mt-3 max-w-sm leading-7 text-slate-400">Track calories, complete a practical workout, and follow the trend—not the noise.</p>
         </div>

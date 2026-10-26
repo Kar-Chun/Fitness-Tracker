@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="228" height="64" viewBox="0 0 228 64" fill="none">
+  <title>Steady</title>
+  <style>.word{fill:#132D42}@media(prefers-color-scheme:dark){.word{fill:#F0F7FA}}</style>
+  <defs><linearGradient id="wave" x1="13" y1="40" x2="51" y2="17" gradientUnits="userSpaceOnUse"><stop stop-color="#4F7CA9"/><stop offset="1" stop-color="#6DE0CE"/></linearGradient></defs>
+  <rect x="1" y="1" width="62" height="62" rx="19" fill="#0D2237" stroke="#25475A" stroke-width="2"/>
+  <path d="M13 40C24 40 20 26 29 26S35 38 43 28L51 17" stroke="url(#wave)" stroke-width="6" stroke-linecap="round"/>
+  <text class="word" x="78" y="45" font-family="Geist,Inter,system-ui,sans-serif" font-size="40" font-weight="600" letter-spacing="-1.8">Steady</text>
+</svg>

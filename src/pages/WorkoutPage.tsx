@@ -8,6 +8,8 @@ import { RoutineBuilder } from "../components/workout/RoutineBuilder.tsx"
 import { WorkoutCompletionSummary } from "../components/workout/WorkoutCompletionSummary.tsx"
 import { EmptyState, IconBadge, MobilePageHeader, PageHeader, SectionHeader, Surface } from "../components/shared/Visual.tsx"
 import { completeWorkoutSession, deleteRoutine, discardWorkoutSession, saveCustomExercise, saveFinishedWorkout, saveRoutine, startWorkout, startWorkoutFromSession } from "../services/workout.ts"
+import { STARTER_PROGRAM } from "../lib/workout-templates.ts"
+import { SteadyLogo } from "../components/shared/SteadyLogo.tsx"
 import type { CustomExerciseInput, FinishedWorkoutInput, FitnessData, RoutineInput, WorkoutSessionWithDetails, WorkoutTemplate } from "../types/fitness.ts"
 
 type WorkoutView =
@@ -42,10 +44,24 @@ function sessionDuration(session: WorkoutSessionWithDetails) {
   return Math.max(1, Math.round((new Date(session.completed_at).getTime() - new Date(session.started_at).getTime()) / 60_000))
 }
 
+function RoutineCards({ routines, sessions, onSelect }: { routines: WorkoutTemplate[]; sessions: WorkoutSessionWithDetails[]; onSelect: (routine: WorkoutTemplate) => void }) {
+  return (
+    <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+      {routines.map((routine) => {
+        const last = sessions.find((session) => session.template_id === routine.id && session.completed_at)
+        const preview = routine.exercises.slice(0, 3).map((exercise) => exercise.exercise_name).join(" · ")
+        return <button key={routine.id} type="button" className="steady-interactive flex min-h-[5.25rem] items-center gap-3 rounded-[1.05rem] border border-[#1b2d45] bg-[#0d1a2c] p-3.5 text-left" onClick={() => onSelect(routine)}><IconBadge icon={Dumbbell} className="size-9" /><div className="min-w-0 flex-1"><p className="text-sm font-semibold leading-5 text-slate-100">{routine.name}</p><p className="mt-1 text-xs text-slate-500">{routine.exercises.length} exercises · {routine.exercises.reduce((total, exercise) => total + exercise.target_sets, 0)} sets{last ? ` · last ${daysSince(last.completed_at)}d ago` : ""}</p>{preview && <p className="mt-1 truncate text-[0.68rem] text-slate-600">{preview}{routine.exercises.length > 3 ? ` +${routine.exercises.length - 3}` : ""}</p>}</div><ChevronRight className="size-4 shrink-0 text-slate-600" /></button>
+      })}
+    </div>
+  )
+}
+
 export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh, onRefreshExercises }: WorkoutPageProps) {
   const [view, setView] = useState<WorkoutView>({ type: "overview" })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const starterRoutines = data.templates.filter((routine) => routine.program_key === STARTER_PROGRAM.key)
+  const otherRoutines = data.templates.filter((routine) => routine.program_key !== STARTER_PROGRAM.key)
   const activeSession = data.sessions.find((session) => !session.completed_at)
   const recent = data.sessions.find((session) => session.completed_at) ?? null
 
@@ -195,6 +211,7 @@ export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh, onRefreshE
     return (
       <div className="grid gap-5">
         <Button variant="ghost" className="w-fit px-0 text-slate-400" onClick={() => setView({ type: "overview" })}>← My routines</Button>
+        {view.routine.program_key === STARTER_PROGRAM.key && <p className="text-xs font-medium text-teal-300">{STARTER_PROGRAM.name}</p>}
         <PageHeader eyebrow={`${view.routine.exercises.length} exercises${duration ? ` · about ${duration} min` : ""}`} title={view.routine.name} />
         <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900">
           {view.routine.exercises.map((exercise, index) => <div key={exercise.id} className={`flex items-center justify-between gap-4 p-4 ${index ? "border-t border-slate-800" : ""}`}><div><p className="font-medium">{exercise.exercise_name}</p><p className="mt-1 text-xs text-slate-500">{exercise.target_sets} × {exercise.target_rep_min}–{exercise.target_rep_max}{exercise.load_type === "per_dumbbell" ? " · kg each" : exercise.load_type === "total" ? " · total load" : ""}</p></div>{exercise.include_in_light && <span className="rounded-full bg-blue-500/10 px-2 py-1 text-xs text-blue-300">Light</span>}</div>)}
@@ -211,11 +228,11 @@ export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh, onRefreshE
   const recentExerciseCount = recent?.session_exercises.filter((exercise) => exercise.status === "completed").length ?? 0
 
   return (
-    <div className="grid gap-5 sm:gap-7">
+    <div className="grid min-w-0 grid-cols-1 gap-5 sm:gap-7">
       <MobilePageHeader title="Workout" subtitle="Train your way." />
       <InlineError message={error} />
 
-      <section>
+      {(recent || starterRoutines.length === 0) && <section>
         <SectionHeader eyebrow="Continue where you left off" title="Recent" />
         {recent ? (
           <Surface className="steady-card-glow relative overflow-hidden p-4 sm:p-6">
@@ -234,25 +251,36 @@ export function WorkoutPage({ userId, data, dumbbellMaxKg, onRefresh, onRefreshE
             </div>
           </Surface>
         ) : <EmptyState compact icon={Dumbbell} title="No workouts yet" description="Create a routine or start a Quick Workout when you are ready." action={<Button onClick={startQuickWorkout}>Start workout</Button>} />}
-      </section>
+      </section>}
 
-      <section>
-        <SectionHeader eyebrow="Your training plans" title="My routines" action={<Button size="sm" variant="ghost" className="text-blue-300" onClick={() => setView({ type: "builder", routine: null })}><Plus /> Create</Button>} />
-        {data.templates.length ? <div className="grid gap-2 sm:grid-cols-2">
-          {data.templates.map((routine) => {
-            const last = data.sessions.find((session) => session.template_id === routine.id && session.completed_at)
-            const preview = routine.exercises.slice(0, 3).map((exercise) => exercise.exercise_name).join(" · ")
-            return <button key={routine.id} type="button" className="steady-interactive flex min-h-[5.25rem] items-center gap-3 rounded-[1.05rem] border border-[#1b2d45] bg-[#0d1a2c] p-3.5 text-left" onClick={() => setView({ type: "routine", routine })}><IconBadge icon={Dumbbell} className="size-9" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-100">{routine.name}</p><p className="mt-1 text-xs text-slate-500">{routine.exercises.length} exercises{last ? ` · last ${daysSince(last.completed_at)}d ago` : ""}</p>{preview && <p className="mt-1 truncate text-[0.68rem] text-slate-600">{preview}{routine.exercises.length > 3 ? ` +${routine.exercises.length - 3}` : ""}</p>}</div><ChevronRight className="size-4 shrink-0 text-slate-600" /></button>
-          })}
-        </div> : <EmptyState compact icon={Dumbbell} title="No routines yet" description="Create a routine around the exercises you enjoy." action={<Button onClick={() => setView({ type: "builder", routine: null })}>Create routine</Button>} />}
-      </section>
+      {starterRoutines.length > 0 && (
+        <section aria-labelledby="starter-program-title" className="rounded-3xl border border-teal-300/20 bg-gradient-to-br from-teal-300/5 to-blue-400/5 p-4 sm:p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <SteadyLogo symbolOnly />
+            <div className="min-w-0">
+              <p className="text-[0.65rem] font-medium uppercase tracking-[0.16em] text-teal-300">Your foundation · 2-day program</p>
+              <h2 id="starter-program-title" className="mt-1 text-lg font-semibold tracking-tight">{STARTER_PROGRAM.name}</h2>
+            </div>
+          </div>
+          <p className="mb-4 max-w-xl text-sm leading-6 text-slate-400">{STARTER_PROGRAM.description}</p>
+          <RoutineCards routines={starterRoutines} sessions={data.sessions} onSelect={(routine) => setView({ type: "routine", routine })} />
+          <p className="mt-4 text-xs leading-5 text-slate-400">Alternate A and B at your own pace. Use a weight you can control with good form. Both routines are yours to edit.</p>
+        </section>
+      )}
+
+      {(otherRoutines.length > 0 || starterRoutines.length === 0) ? (
+        <section>
+          <SectionHeader eyebrow="Your training plans" title="My routines" action={<Button size="sm" variant="ghost" className="text-blue-300" onClick={() => setView({ type: "builder", routine: null })}><Plus /> Create</Button>} />
+          {otherRoutines.length ? <RoutineCards routines={otherRoutines} sessions={data.sessions} onSelect={(routine) => setView({ type: "routine", routine })} /> : <EmptyState compact icon={Dumbbell} title="No routines yet" description="Create a routine around the exercises you enjoy." action={<Button onClick={() => setView({ type: "builder", routine: null })}>Create routine</Button>} />}
+        </section>
+      ) : <Button variant="outline" className="h-11 w-fit" onClick={() => setView({ type: "builder", routine: null })}><Plus /> Create your own routine</Button>}
 
       <section className="grid grid-cols-2 gap-3">
         <button type="button" disabled={busy} className="steady-interactive min-h-28 rounded-[1.05rem] border border-[#1b2d45] bg-[#0d1a2c] p-3.5 text-left disabled:opacity-50" onClick={startQuickWorkout}><IconBadge icon={Sparkles} className="size-8" /><span className="mt-3 block text-sm font-semibold text-slate-100">Quick Workout</span><span className="mt-1 block text-[0.68rem] leading-4 text-slate-500">Start empty and add exercises</span></button>
         <button type="button" className="steady-interactive min-h-28 rounded-[1.05rem] border border-[#1b2d45] bg-[#0d1a2c] p-3.5 text-left" onClick={() => setView({ type: "finished", routine: null, recent: null })}><IconBadge icon={Clock3} className="size-8" /><span className="mt-3 block text-sm font-semibold text-slate-100">Log Finished</span><span className="mt-1 block text-[0.68rem] leading-4 text-slate-500">Record a workout after training</span></button>
       </section>
 
-      <Button variant="outline" className="h-12 justify-start rounded-xl text-slate-300" onClick={() => setView({ type: "library" })}><BookOpen className="text-blue-400" /> Browse exercise library <ChevronRight className="ml-auto" /></Button>
+      <Button variant="outline" className="h-12 min-w-0 justify-start whitespace-normal rounded-xl text-left text-slate-300" onClick={() => setView({ type: "library" })}><BookOpen className="text-blue-400" /> Browse exercise library <ChevronRight className="ml-auto" /></Button>
     </div>
   )
 }

@@ -1,5 +1,4 @@
 import { supabase } from "../lib/supabase.ts"
-import { DEFAULT_WORKOUT_TEMPLATES } from "../lib/workout-templates.ts"
 import { requireData } from "./shared.ts"
 import type {
   CustomExerciseInput,
@@ -18,35 +17,10 @@ import type {
 
 export type WorkoutData = Pick<FitnessData, "templates" | "exercises" | "sessions">
 
-export async function ensureDefaultWorkoutTemplates(userId: string) {
-  const { data: library, error: libraryError } = await supabase.from("exercises").select("id,name").is("user_id", null)
-  if (libraryError) throw new Error(libraryError.message)
-  const exerciseIds = new Map((library as Array<{ id: string; name: string }>).map((exercise) => [exercise.name.toLowerCase(), exercise.id]))
-  for (const template of DEFAULT_WORKOUT_TEMPLATES) {
-    const { data, error } = await supabase
-      .from("workout_templates")
-      .upsert({ user_id: userId, name: template.name }, { onConflict: "user_id,name" })
-      .select("id")
-      .single()
-    const savedTemplate = requireData(data, error, `Could not create ${template.name}.`) as { id: string }
-    const exercises = template.exercises.map((exercise, position) => ({
-      user_id: userId,
-      template_id: savedTemplate.id,
-      exercise_name: exercise.name,
-      position,
-      target_sets: exercise.targetSets,
-      target_rep_min: exercise.repMin,
-      target_rep_max: exercise.repMax,
-      progression_step_kg: exercise.progressionStepKg,
-      exercise_id: exerciseIds.get(exercise.name.toLowerCase()) ?? null,
-      include_in_light: position < 3,
-      light_target_sets: position < 3 ? Math.min(2, exercise.targetSets) : null,
-    }))
-    const { error: exerciseError } = await supabase
-      .from("workout_template_exercises")
-      .upsert(exercises, { onConflict: "template_id,position" })
-    if (exerciseError) throw new Error(exerciseError.message)
-  }
+export async function ensureDefaultWorkoutTemplates() {
+  // The database derives the owner from auth.uid() and creates both routines atomically.
+  const { error } = await supabase.rpc("ensure_starter_workout_program")
+  if (error) throw new Error(error.message)
 }
 
 export async function loadExercises(userId: string) {
@@ -61,6 +35,7 @@ export async function loadExercises(userId: string) {
 }
 
 export async function loadWorkoutData(userId: string): Promise<WorkoutData> {
+  await ensureDefaultWorkoutTemplates()
   const [templateResult, sessionResult, exercises, sessionExerciseResult] = await Promise.all([
     supabase
       .from("workout_templates")
@@ -112,6 +87,7 @@ export async function loadWorkoutData(userId: string): Promise<WorkoutData> {
     id: template.id,
     user_id: template.user_id,
     name: template.name,
+    program_key: template.program_key,
     created_at: template.created_at,
     exercises: [...template.workout_template_exercises]
       .sort((a, b) => a.position - b.position)

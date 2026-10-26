@@ -1,11 +1,12 @@
 import { useMemo, useState, type FormEvent } from "react"
-import { Activity, ArrowRight, LoaderCircle } from "lucide-react"
+import { ArrowRight, LoaderCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { calculateCalorieTarget } from "../lib/calculations.ts"
 import { completeOnboarding } from "../services/profile.ts"
 import type { ActivityLevel, Goal, Sex } from "../types/fitness.ts"
 import { FieldShell, Input, Select } from "../components/shared/FormField.tsx"
 import { InlineError } from "../components/shared/Feedback.tsx"
+import { SteadyLogo } from "../components/shared/SteadyLogo.tsx"
 
 interface OnboardingPageProps {
   userId: string
@@ -59,8 +60,8 @@ export function OnboardingPage({ userId, onComplete }: OnboardingPageProps) {
   return (
     <main className="min-h-dvh bg-slate-950 px-5 py-8 text-white">
       <div className="mx-auto max-w-xl">
+        <SteadyLogo className="mb-8" />
         <div className="mb-8 flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-xl bg-blue-500"><Activity className="size-5" /></div>
           <div>
             <p className="text-xs font-medium uppercase tracking-widest text-blue-400">One-time setup</p>
             <h1 className="text-2xl font-semibold">Set your starting point</h1>

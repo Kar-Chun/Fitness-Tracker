@@ -56,7 +56,7 @@ export async function completeOnboarding(userId: string, input: OnboardingInput)
   if (targetResult.error) throw new Error(targetResult.error.message)
 
   await upsertWeight(userId, input.weightKg, toLocalDateKey())
-  await ensureDefaultWorkoutTemplates(userId)
+  await ensureDefaultWorkoutTemplates()
   const { error: completionError } = await supabase
     .from("profiles")
     .update({ onboarding_completed: true })

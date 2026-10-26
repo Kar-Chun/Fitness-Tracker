@@ -1,7 +1,8 @@
-import { Activity, Apple, ChartNoAxesCombined, ChevronLeft, ChevronRight, Dumbbell, Home, Settings } from "lucide-react"
+import { Apple, ChartNoAxesCombined, ChevronLeft, ChevronRight, Dumbbell, Home, Settings } from "lucide-react"
 import type { ReactNode } from "react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { SteadyLogo } from "../shared/SteadyLogo.tsx"
 
 export type AppTab = "home" | "food" | "workout" | "progress"
 
@@ -42,8 +43,7 @@ export function AppShell({ activeTab, onTabChange, onOpenAccount, email, childre
     <div className="min-h-dvh bg-[radial-gradient(circle_at_50%_-8rem,rgba(32,99,190,0.15),transparent_30rem),#050d19] text-white">
       <aside className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-slate-800/80 bg-[#091423] transition-[width] duration-200 md:flex ${sidebarCollapsed ? "w-[4.5rem]" : "w-60"}`} aria-label="Desktop navigation">
         <div className={`flex h-[4.5rem] shrink-0 items-center ${sidebarCollapsed ? "justify-center px-2" : "gap-3 px-5"}`}>
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-500 text-white shadow-[0_8px_22px_-10px_rgba(59,130,246,0.9)]"><Activity className="size-5" /></span>
-          {!sidebarCollapsed && <span className="text-lg font-semibold tracking-[-0.03em]">Steady</span>}
+          <SteadyLogo symbolOnly={sidebarCollapsed} />
         </div>
         <nav className="grid gap-1 px-3 py-4" aria-label="Primary navigation">
           {tabs.map(({ id, label, icon: Icon }) => (
@@ -68,7 +68,10 @@ export function AppShell({ activeTab, onTabChange, onOpenAccount, email, childre
       <Button variant="ghost" size="icon" className="fixed right-4 top-[calc(env(safe-area-inset-top)+0.6rem)] z-30 size-10 rounded-full border border-[#1b2d45] bg-[#0d1a2c]/90 text-slate-400 shadow-lg backdrop-blur-md md:hidden" onClick={onOpenAccount} aria-label="Open profile and settings" title="Profile and settings"><Settings /></Button>
 
       <div className={`min-h-dvh transition-[margin-left] duration-200 ${sidebarCollapsed ? "md:ml-[4.5rem]" : "md:ml-60"}`}>
-        <main className="mx-auto min-w-0 max-w-7xl px-4 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top)+0.9rem)] sm:px-6 sm:pt-5 md:px-8 md:pb-12 md:pt-10 xl:px-10">{children}</main>
+        <main className="mx-auto min-w-0 max-w-7xl px-4 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top)+0.9rem)] sm:px-6 sm:pt-5 md:px-8 md:pb-12 md:pt-10 xl:px-10">
+          <div className="mb-6 flex h-10 items-center pr-12 md:hidden"><SteadyLogo /></div>
+          {children}
+        </main>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#1b2d45] bg-[#071220]/95 px-2 pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-14px_35px_-28px_rgba(0,0,0,0.95)] backdrop-blur-xl md:hidden" aria-label="Primary navigation">

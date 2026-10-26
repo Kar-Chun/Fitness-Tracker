@@ -72,6 +72,35 @@ For a manual integration check, try a banana, eggs with toast, chicken rice, cai
 - `npm run build`
 - `npm test`
 
+## Steady brand and starter program
+
+The rounded upward wave represents calm, consistent progress. The mark uses navy (`#0D2237`), muted blue (`#4F7CA9`), and aqua (`#6DE0CE`). `SteadyLogo` pairs the SVG symbol with the app's existing Geist typography and provides an accessible name. It is used on sign-in, onboarding, mobile headers, and the expanded/collapsed desktop sidebar.
+
+Reusable assets are in `public/brand`: `steady-logo.svg` (horizontal, with light/dark wordmark colors), `steady-icon.svg` (symbol tile), and `steady-mono.svg` (single-color symbol using `currentColor` when embedded inline). `public/favicon.svg` uses the same icon; `public/apple-touch-icon.png` is a 180 px render for iOS. No new dependencies are required.
+
+Apply `supabase/migrations/20261025154136_steady_starter_ab.sql` **before deploying the frontend**, using the existing migration workflow:
+
+```sh
+npx supabase db push
+```
+
+The additive, rerunnable migration adds `workout_templates.program_key`, `profiles.starter_workouts_initialized`, two missing shared exercises, and an authenticated, security-invoker RPC. Existing rows and exercise identities are preserved; there is no bulk rewrite or deletion of user data.
+
+On onboarding and workout-data loads, `ensure_starter_workout_program()` checks the signed-in account. Only an account with no routines and no workout sessions receives **Steady Starter A/B**, presented as one program section containing two ordinary editable routines:
+
+- **Workout A — Main Lifts + Biceps:** DB Bench Press 3 × 8–12, One-Arm Row 3 × 8–12, Goblet Squat 3 × 8–12, Glute Bridge 2 × 10–15, DB Bicep Curl 2 × 8–12. **13 sets.**
+- **Workout B — Full Body + Triceps:** DB Floor Press 3 × 8–12, One-Arm Row 3 × 8–12, Goblet Squat 2 × 8–12, Sliding Hamstring Curl 2 × 8–12, DB Tricep Extension 2 × 8–12, DB Lateral Raise 2 × 12–15. **14 sets.**
+
+The program reuses the existing routine, logger, history, editing, and progression architecture. Exercise display names match the program while stable library IDs retain correct per-dumbbell, total-load, and bodyweight semantics. Tricep extensions use the existing overhead, single-dumbbell movement. The optional Light version retains the first three exercises with two sets each. Alternating A/B is guidance, not an enforced schedule.
+
+Both routines and their targets are created in one transaction under an owner-profile row lock. Concurrent calls and retries cannot duplicate the program. A persistent marker also prevents deleted starter routines from reappearing. Accounts with any existing routine (including earlier defaults) or workout session keep their current plans and history. Empty existing accounts receive the program on their next load. No manual seed or data cleanup is needed.
+
+Database regression assertions cover exact exercise order/targets, identities, repeat calls, edits, deletion, existing routines/history, anonymous permissions, and failed-seed rollback. Run against a disposable migrated Supabase/PostgreSQL database; all test fixtures roll back:
+
+```sh
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/database/starter-program.test.sql
+```
+
 ## V1.3 custom workouts
 
 The Workout tab is user-choice-first. Existing Workout A/B rows remain ordinary editable routines, while users can create any number of routines from the focused home-equipment exercise library or their own custom exercises.
